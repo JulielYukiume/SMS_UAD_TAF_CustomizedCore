@@ -619,7 +619,8 @@ namespace TweaksAndFixes
         [HarmonyPostfix]
         internal static void Postfix_Update(Ui __instance)
         {
-            if (G.settings.filterdResolution.Count > G.settings.resolution &&
+            if (G.settings.useFullscreen &&
+                G.settings.filterdResolution.Count > G.settings.resolution &&
                 !ResolutionEquals(
                 G.settings.filterdResolution[G.settings.resolution],
                 UnityEngine.Screen.currentResolution))
