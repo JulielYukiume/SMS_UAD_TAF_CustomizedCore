@@ -272,7 +272,7 @@ namespace TweaksAndFixes.Modified
                 bool first = true;
                 child.transform.SetScale(1 + design.beam / 100, 1 + design.draught / 100, 1);
 
-                Melon<TweaksAndFixes>.Logger.Msg($"{child.name}");
+                // Melon<TweaksAndFixes>.Logger.Msg($"{child.name}");
                 ModUtils.ForeachRecursive(child, new((GameObject g) => {
 
                     if (g.activeSelf == false)
@@ -690,13 +690,15 @@ namespace TweaksAndFixes.Modified
                 break;
             }
 
+            // Melon<TweaksAndFixes>.Logger.Msg($"{s.size.y}");
+
             dockyard.transform.localPosition = dockyardPos;
 
             G.cam.enabled = false;
             G.cam.lookingAt = s.root.transform.position;
-            G.cam.distance = 200;
-            G.cam.distanceDesired = 200;
-            G.cam.rotationX = 40;
+            G.cam.distance = s.size.y;
+            G.cam.distanceDesired = s.size.y;
+            G.cam.rotationX = 25;
             G.cam.rotationY = 225;
             UiM.SettupMainMenuCam(G.cam);
 
