@@ -641,11 +641,12 @@ namespace TweaksAndFixes
             btn.transform.localScale = Vector3.one;
 
             GameObject textObj = btn.GetChild("Text (TMP)");
+            // SetLocalizedTextTag(textObj, "$Ui_LoadGame");
             if (textObj != null)
             {
-                textObj.TryDestroyComponent<LocalizeText>();
+                // textObj.TryDestroyComponent<LocalizeText>();
                 if (textObj.TryGetComponent(out TMP_Text tmp))
-                    tmp.text = "Load Game";
+                    tmp.text = ModUtils.LocalizeF("$Ui_LoadGame");
             }
             if (btn.TryGetComponent(out Button buttonComp))
             {
