@@ -329,6 +329,17 @@ namespace TweaksAndFixes
             }
         }
 
+        [HarmonyPatch(nameof(Ship.Hover))]
+        [HarmonyPrefix]
+        internal static bool Prefix_Hover(Ship __instance, bool hover)
+        {
+            __instance.isHovered = hover;
+            foreach (var p in __instance.hullAndParts)
+                p.SetVisualMode(hover ? Part.VisualMode.Hover : Part.VisualMode.Normal);
+
+            return false;
+        }
+
         // ########## Ship Scuttling ########## //
 
         // CheckForSurrender

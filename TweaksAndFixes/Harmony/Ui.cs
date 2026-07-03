@@ -331,6 +331,32 @@ namespace TweaksAndFixes
             UiM.skirmishSetupMod.ApplyToSK();
         }
 
+        [HarmonyPatch(nameof(Ui.HoverShips))]
+        [HarmonyPrefix]
+        internal static bool Prefix_HoverShips(Ui __instance, Il2CppSystem.Collections.Generic.List<Ship> ships, bool fromUi)
+        {
+            if (GameManager.IsBattleStart)
+                return false;
+
+            if (ships.Count == 0 && G.ui.hoveredShips.Count == 0)
+                return false;
+
+            foreach (var ship in G.ui.hoveredShips)
+            {
+                ship.Hover(false);
+            }
+
+            foreach (var ship in ships)
+            {
+                ship.Hover(true);
+            }
+
+            G.ui.hoveredShips = ships;
+
+            return false;
+        }
+
+
 
         // ########## Fixes by Crux10086 ########## //
 
