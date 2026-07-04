@@ -3057,18 +3057,16 @@ namespace TweaksAndFixes
         [HarmonyPostfix]
         internal static void Postfix_RefreshSpecialEventsList(MapUI __instance)
         {
-            //Melon<TweaksAndFixes>.Logger.Msg($"{WorldCampaign.instance}");
-
-            if (__instance.GetChild("WorldEx") == null)
+            if (WorldCampaign.instance.GetChild("WorldEx") == null)
                 return;
 
-            if (__instance.GetChild("WorldEx").GetChild("Zones") == null)
+            if (WorldCampaign.instance.GetChild("WorldEx").GetChild("Zones") == null)
                 return;
 
-            foreach (var child in __instance.GetChild("WorldEx").GetChild("Zones").GetChildren())
+            foreach (var child in WorldCampaign.instance.GetChild("WorldEx").GetChild("Zones").GetChildren())
             {
-                //Melon<TweaksAndFixes>.Logger.Msg($"  {child.name}");
-                child.transform.localPosition = new(child.transform.localPosition.x, 0, child.transform.localPosition.z);
+                // Melon<TweaksAndFixes>.Logger.Msg($"  {child.name}");
+                child.transform.localPosition = new(child.transform.localPosition.x, 0.1f, child.transform.localPosition.z);
             }
         }
     }
