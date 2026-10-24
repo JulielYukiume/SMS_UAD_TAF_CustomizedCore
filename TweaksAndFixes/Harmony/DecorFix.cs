@@ -8,16 +8,18 @@ using UnityEngine;
 namespace TweaksAndFixes
 {
     /// <summary>
-    /// [SMS.1.DECOR] 甲板装饰件（Decor）重写移植 + 碰撞修复（v2）。
+    /// [SMS.1.DECOR] 甲板装饰件（Decor）重写移植 + 碰撞修复（v3）。
     ///
     /// 来源：Beta6 的 `Patch_Ship::Prefix_RefreshDecor`（甲板装饰重写）。
     ///
-    /// **v2 的改动（2026-10-24，按实测反馈）**：
-    /// v1 用 `part.partVisualSize` 做相交判定，导致"炮座几何体"就足以隐藏救生艇，
-    /// 与原版不符。原版只在 **deckSize / hangSize 碰撞体积** 相交时才隐藏。
-    /// v2 改为：
-    ///   · 只使用 `PartData.deckSizes` / `PartData.hangSizes`（List&lt;Rigidbody&gt;）的碰撞体包围盒；
-    ///   · **不**纳入"理论射界/回转范围"（duke 后续会重写有效射界逻辑，届时再接入）。
+    /// 判定规则（v3，2026-10-24 按实测 + Blender 层级反馈修正）：
+    ///   **三者取"或"**，任一相交即隐藏救生艇等装饰件：
+    ///   ① `part.partVisualSize`（炮塔主体/炮座几何体，v1 的行为）
+    ///   ② `Part.deckSizes` / `Part.hangSizes` 碰撞体（近似"无高度"，因此**向上扩展**到模型全高再判）
+    ///   ③ 炮管：遍历 `part` 下层名字含 `barrel`（小写）的物体，取其 Renderer 世界包围盒
+    ///
+    /// 为什么加 ③：`Visual` 下级的 3D 物体通常只有炮塔体，**不含炮管**；炮管是独立子物体，
+    /// 名字里带 `barrel`。v1 只测 partVisualSize，所以炮管转过去时救生艇不消失。
     ///
     /// 关于 `Decor.Awake`：Beta6 用 Prefix 跳过原方法，导致原版"重叠检查注册"丢失
     /// （docs/38 §3.1 实测：Beta6 自身救生艇不消失）。我们改为 **Postfix 补充**，不跳过原方法。
@@ -53,8 +55,8 @@ namespace TweaksAndFixes
                     }
                 }
 
-                Bounds overlap = default;
                 var parts = __instance.parts;
+                Bounds overlap = default;
 
                 foreach (var dec in __instance.decor)
                 {
@@ -77,7 +79,7 @@ namespace TweaksAndFixes
                             if (data == null) continue;
                             if (ignore != null && ignore.Contains(data.type)) continue;
 
-                            if (IntersectsDeckOrHang(part, overlap))
+                            if (PartMatches(part, overlap))
                             {
                                 hidden = true;
                                 break;
@@ -96,24 +98,37 @@ namespace TweaksAndFixes
             return false;
         }
 
-        /// <summary>
-        /// 只检查 deckSizes / hangSizes（炮座与吊臂的碰撞体积）。
-        /// 这些 Rigidbody 属于部件模板，坐标以模板原点为基准，因此用部件实例的世界坐标做平移。
-        /// </summary>
-        private static bool IntersectsDeckOrHang(Part part, Bounds decBox)
+        /// <summary>① 主体几何体 或 ② deck/hang 碰撞体 或 ③ 炮管，任一相交即可。</summary>
+        private static bool PartMatches(Part part, Bounds decBox)
         {
             try
             {
-                // Part.deckSizes / hangSizes 是部件实例上的碰撞体积（炮座/吊臂），
-                // 其 collider.bounds 已是世界坐标，无需再平移。
-                if (IntersectsList(part.deckSizes, decBox)) return true;
-                if (IntersectsList(part.hangSizes, decBox)) return true;
+                // ① 炮塔/炮座主体（v1 行为）
+                var visual = part.partVisualSize;
+                if (visual.size.sqrMagnitude > 0.0001f)
+                {
+                    var vBox = new Bounds(part.transform.position, visual.size);
+                    if (vBox.Intersects(decBox)) return true;
+                }
+
+                // ② deckSizes / hangSizes（扁盒 → 向上扩展至模型全高）
+                float fullHeight = Mathf.Max(visual.size.y, 0.1f);
+                if (IntersectsFlatList(part.deckSizes, part.transform.position, fullHeight, decBox)) return true;
+                if (IntersectsFlatList(part.hangSizes, part.transform.position, fullHeight, decBox)) return true;
+
+                // ③ 炮管（名字含 barrel，小写）
+                if (IntersectsBarrels(part.gameObject, decBox)) return true;
             }
             catch { }
             return false;
         }
 
-        private static bool IntersectsList(Il2CppSystem.Collections.Generic.List<Rigidbody> list, Bounds decBox)
+        /// <summary>
+        /// deckSizes/hangSizes 的碰撞体几乎只有平面（高度 ~0.1），
+        /// 因此把盒子的 Y 向按"模型全高"向上扩展，再做 3D 相交。
+        /// </summary>
+        private static bool IntersectsFlatList(Il2CppSystem.Collections.Generic.List<Rigidbody> list,
+                                               Vector3 origin, float fullHeight, Bounds decBox)
         {
             if (list == null) return false;
             for (int i = 0; i < list.Count; i++)
@@ -122,11 +137,41 @@ namespace TweaksAndFixes
                 if (rb == null) continue;
                 var colliders = rb.GetComponentsInChildren<Collider>();
                 if (colliders == null) continue;
+
                 foreach (var col in colliders)
                 {
                     if (col == null) continue;
-                    if (col.bounds.Intersects(decBox)) return true;
+                    var b = col.bounds;
+                    b.center += origin;
+
+                    // 向上扩展：保留底部，顶部拉到模型全高
+                    float bottom = b.center.y - b.size.y * 0.5f;
+                    float top = bottom + Mathf.Max(fullHeight, b.size.y);
+                    var expanded = new Bounds(
+                        new Vector3(b.center.x, (bottom + top) * 0.5f, b.center.z),
+                        new Vector3(b.size.x, top - bottom, b.size.z));
+
+                    if (expanded.Intersects(decBox)) return true;
                 }
+            }
+            return false;
+        }
+
+        /// <summary>遍历所有子物体，名字含 "barrel"（不区分大小写）的，用其 Renderer 世界包围盒判定。</summary>
+        private static bool IntersectsBarrels(GameObject root, Bounds decBox)
+        {
+            if (root == null) return false;
+
+            var renderers = root.GetComponentsInChildren<Renderer>();
+            if (renderers == null) return false;
+
+            foreach (var r in renderers)
+            {
+                if (r == null) continue;
+                string n = r.gameObject.name;
+                if (string.IsNullOrEmpty(n)) continue;
+                if (n.IndexOf("barrel", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (r.bounds.Intersects(decBox)) return true;
             }
             return false;
         }
