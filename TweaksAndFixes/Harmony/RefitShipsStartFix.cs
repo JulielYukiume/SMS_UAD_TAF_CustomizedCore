@@ -49,10 +49,15 @@ namespace TweaksAndFixes
             }
         }
 
-        [HarmonyPostfix]
-        [HarmonyPatch(nameof(PlayerController.RefitShipsStart))]
+        // ★ [SMS.1.RS] 不再挂载 Postfix：duke 的 Postfix 会立刻 CalcWeightAndCost(true,true)，
+        //   在"装甲分区/分舱权重尚未结算"时算出的吨位偏低（实测 14700 → 13000），
+        //   并且会写回 ship.tonnage 落进存档。该职责由 E 模块（置失效 + 延迟重算）承担。
+        // [HarmonyPostfix]
+        // [HarmonyPatch(nameof(PlayerController.RefitShipsStart))]
         internal static void Postfix_RefitShipsStart(Il2CppSystem.Collections.Generic.List<Ship> shipList, Ship refitDesign)
         {
+            // 见上：禁用即时重算，交由 E 模块处理
+            if (true) return;
             try
             {
                 if (shipList == null || shipList.Count == 0) return;
