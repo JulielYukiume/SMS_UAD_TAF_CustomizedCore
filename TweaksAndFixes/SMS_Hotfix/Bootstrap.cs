@@ -34,6 +34,7 @@ namespace TAFHotfixBatch1
             Modules.ShipTypeProbe.Install(harmony);
             Modules.ShipTypeSupportApply.Install(harmony);
             Modules.TonnageCheck.Install(harmony);
+            Modules.DesignStatusAudit.Install(harmony);
             Modules.IsPartAvailableProbe.Install(harmony);
             Modules.HullTypeDump.Install(harmony);
             Modules.ConstructorTypeProbe.Install(harmony);

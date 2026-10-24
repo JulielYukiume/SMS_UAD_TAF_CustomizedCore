@@ -69,6 +69,10 @@ namespace TAFHotfixBatch1
         internal static bool TonnageCheckStrict = true;
         /// <summary>[SMS.1.TON] 把不一致的实存船 tonnage 回填为设计值（默认关）。</summary>
         internal static bool TonnageRepair = false;
+        /// <summary>[SMS.1.STA] 设计 status 稽核（只读）。</summary>
+        internal static bool DesignStatusAudit = true;
+        /// <summary>[SMS.1.STA] 把 status!=0 的设计统一置 0（默认关）。</summary>
+        internal static bool DesignStatusFix = false;
         /// <summary>[L] 抑制 TAF 的 "has no valid predefined designs" 逐包报错（噪音，非真缺口）。</summary>
         internal static bool SuppressPredefPackErrors = true;
         /// <summary>[T] 修正 dirtycheater「立即完成当前科技」对 SMS 科技树的匹配。</summary>
@@ -211,6 +215,8 @@ namespace TAFHotfixBatch1
             TonnageCheck = GetBool("tonnage_check", TonnageCheck);
             TonnageCheckStrict = GetBool("tonnage_check_strict", TonnageCheckStrict);
             TonnageRepair = GetBool("tonnage_repair", TonnageRepair);
+            DesignStatusAudit = GetBool("design_status_audit", DesignStatusAudit);
+            DesignStatusFix = GetBool("design_status_fix", DesignStatusFix);
             SuppressPredefPackErrors = GetBool("suppress_predef_pack_errors", SuppressPredefPackErrors);
             CheatTechFix = GetBool("cheat_tech_fix", CheatTechFix);
             ShipTypeProbe = GetBool("shiptype_probe", ShipTypeProbe);
