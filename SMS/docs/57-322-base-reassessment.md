@@ -70,3 +70,56 @@ error CS: 304 个
 - `feature/3.22-base`（基于 `main` 的合并）**不作为 3.22 基线**：建议改名为 `scratch/main-322line` 保留作参考，或直接删除；
 - 真正的 3.22 工作分支将从 **`main`（3.21.1-SMS.1 冻结状态）** 拉出 `feature/322-port`，逐项移植并在 `[SMS.*]` 日志下验证；
 - `dist/3.22.0-SMS.1-preview1` 里的 DLL 应视为"**main 线 + 我们热修层**"，不是 3.22 特性版，待作废或改名。
+
+---
+
+## 7. 正式路线确认（2026-10-24 定稿）
+
+**基座 = `3.21.1-SMS.1`（我们的冻结版）**，在此之上按 `docs/13 §2.2` 的缺口清单**逐批整合 Beta6 特性**，
+最后再处理 **decor 重写**（"甲板装饰物生成重写 + 救生艇无碰撞"是 Beta6 独有的可识别特征）。
+
+### 7.1 分支
+
+| 分支 | 用途 |
+| --- | --- |
+| `main` | `3.21.1-SMS.1` 冻结状态（发布基线） |
+| `feature/322-port` | 本次整合（从 `main` 拉出） |
+| ~~`scratch/main-322line`~~ | 已删除（基于 upstream main 的错误尝试） |
+
+### 7.2 基线度量（首次量化，可复现）
+
+```
+TafInspector inspect <our dll> docs/generated/sms1-322port
+powershell -File tools/fidelity.ps1 -A docs/generated/sms1-322port/06-methods.tsv \
+                                     -B docs/generated/v3.22.0-beta6/06-methods.tsv
+```
+
+| 指标 | 值 |
+| --- | --- |
+| 我方方法数 | 1,768（含 SMS 热修层 28 模块） |
+| Beta6 方法数 | 1,621 |
+| **方法体哈希完全一致** | **1,204（68.1%）** |
+| 同 IL、不同哈希（代码生成差异） | 99（5.6%） |
+| **IL 条数不同（真实差异）** | **65（3.7%）** |
+| 仅我方有 | 400（主要是 SMS 热修层 + 3.21.1 独有） |
+| **仅 Beta6 有** | **247**（= 待移植的缺口方法） |
+
+### 7.3 首批要补的（按 IL 规模排序，均为 Beta6 独有或显著差异）
+
+| 方法 | 差异 | 归属 |
+| --- | --- | --- |
+| `UiM.ApplySettingsMenuModifications` | +226 IL（19→681） | B1：**设置菜单选项**（用户指出的"应有选项"） |
+| `UiM.ApplyCampaignWindowModifications` | +240 IL | B2/B5：战役窗口项 |
+| `Patch_ShipGenRandom.OptimizeComponents` | +202 IL | B1：生成器优化 |
+| `.<ToMainMenuCoroutine>d__25.MoveNext` | +237 IL | B1：主菜单流程 |
+| `PredefinedDesignsData.LoadPredefs` | −439 IL | B1：预制设计加载重构 |
+| `MainMenuM.MakeVisualShip` | −731 IL | B5：主菜单封面船（改用本体加载器） |
+
+### 7.4 执行顺序
+
+1. **P1（先做，用户可见）**：`oceanType` + `OceanGraphicsData` + `UpdateStaticOcean`、`ApplySettingsMenuModifications`、`ApplyCampaignWindowModifications`
+2. **P2**：decor 重写（`Patch_Decor` + `Prefix_RefreshDecor`）——**最后验收项**，因为它是 Beta6 的识别特征
+3. **P3**：`LoadPredefs`、`MakeVisualShip`、`ToMainMenuCoroutine`、`OptimizeComponents`
+4. **P4**：`CampaignEventSystem` 等二线缺口
+
+每批完成后重跑 `fidelity.ps1`，以"哈希一致率"作为进度指标（当前 68.1%）。
