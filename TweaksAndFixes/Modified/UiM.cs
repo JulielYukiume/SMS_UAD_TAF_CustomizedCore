@@ -1343,6 +1343,10 @@ namespace TweaksAndFixes
                         "$TAF_Ui_SkirmishSettup_SharedDesignToggle_" + (skirmishSetupMod.useShared ? "On" : "Off"));
             }));
 
+            // SMS.1.PU: 当 TAF 的 ForceNoPredefsInNewGames（taf_force_no_predef_designs=1）开启时，
+            // 自定义战斗的预制设计必须默认禁用且不可切换（与战役"AI 设计速度=缓慢"同理）。
+            if (Config.ForceNoPredefsInNewGames) skirmishSetupMod.usePredefs = false;
+
             GameObject predefDesigns = GameObject.Instantiate(sharedDesignsBase);
             predefDesigns.name = "TAF Predef Designs";
             predefDesigns.transform.SetParent(upperButtons, false);
@@ -1356,11 +1360,13 @@ namespace TweaksAndFixes
             predefDesignsButton.onClick.RemoveAllListeners();
             predefDesignsButton.onClick.AddListener(new System.Action(() =>
             {
+                if (Config.ForceNoPredefsInNewGames) return;   // SMS.1.PU: 锁定
                 skirmishSetupMod.usePredefs = !skirmishSetupMod.usePredefs;
                 predefDesignsText.text = ModUtils.LocalizeF(
                         "$TAF_Ui_SkirmishSettup_PredefDesignToggle_" + (skirmishSetupMod.usePredefs ? "On" : "Off"));
             }));
 
+            if (Config.ForceNoPredefsInNewGames) predefDesignsButton.interactable = false;   // SMS.1.PU: 置灰
             sharedDesignsBase.active = false;
 
             GameObject weatherSettings = ModUtils.GetChildAtPath("Weather Settings", upperButtons);

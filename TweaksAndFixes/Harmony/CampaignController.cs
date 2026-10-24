@@ -149,7 +149,9 @@ namespace TweaksAndFixes
 
                     for (int j = vessels.Count - 1; j >= 0; j--)
                     {
-                        if (((Ship)vessels[j]).design == vessels[i])
+                        // SMS.1.B: vessels 里混有非 Ship 的 VesselEntity（Submarine 等），强转会抛 InvalidCastException
+                        // 并中断整轮清理（表现为"卖掉/报废的船在列表里不消失"）。改用类型检查。
+                        if (vessels[j] is Ship vj && vj.design == vessels[i])
                         {
                             // Melon<TweaksAndFixes>.Logger.Msg($"    Erased design has {vessels[j].status} ship '{vessels[j].vesselName}'");
                             hasDesign = true;

@@ -1,10 +1,10 @@
-﻿using MelonLoader;
+using MelonLoader;
 using UnityEngine;
 using Il2Cpp;
 using Il2CppLitJson;
 
 [assembly: MelonGame("Game Labs", "Ultimate Admiral Dreadnoughts")]
-[assembly: MelonInfo(typeof(TweaksAndFixes.TweaksAndFixes), "TAF-3.21.1", "3.21.1", "NathanKell & DukeDagor")]
+[assembly: MelonInfo(typeof(TweaksAndFixes.TweaksAndFixes), "TAF-3.21.1-SMS.1", "3.21.1-SMS.1", "NathanKell & DukeDagor, SMS fork")]
 [assembly: MelonColor(255, 220, 220, 0)]
 [assembly: HarmonyDontPatchAll]
 
@@ -21,6 +21,9 @@ namespace TweaksAndFixes
             try
             {
                 HarmonyInstance.PatchAll(MelonAssembly.Assembly);
+
+                try { TAFHotfixBatch1.Bootstrap.Install(HarmonyInstance); }
+                catch (Exception hs) { Melon<TweaksAndFixes>.Logger.BigError("[SMS] hotfix install failed: " + hs); }
             }
             catch (Exception e)
             {

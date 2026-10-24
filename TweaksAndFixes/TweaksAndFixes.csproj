@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
@@ -93,7 +93,12 @@
       <HintPath>$(UAD_PATH)MelonLoader/Il2CppAssemblies/UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-  </ItemGroup>
+      <!-- ADDED (SMS CustomizedCore): Harmony/SceneManager.cs uses UnityEngine.AudioSource,
+         which lives in UnityEngine.AudioModule (available via UAD_PATH Il2CppAssemblies). -->
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(UAD_PATH)MelonLoader/Il2CppAssemblies/UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference></ItemGroup>
 
   <ItemGroup>
     <Folder Include="Properties/" />
