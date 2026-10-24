@@ -73,6 +73,8 @@ namespace TAFHotfixBatch1
         internal static bool DesignStatusAudit = true;
         /// <summary>[SMS.1.STA] 把 status!=0 的设计统一置 0（默认关）。</summary>
         internal static bool DesignStatusFix = true;
+        /// <summary>[SMS.1.REP] 赔偿设计"能否建造"只读探针。</summary>
+        internal static bool ReparationBuildProbe = true;
         /// <summary>[L] 抑制 TAF 的 "has no valid predefined designs" 逐包报错（噪音，非真缺口）。</summary>
         internal static bool SuppressPredefPackErrors = true;
         /// <summary>[T] 修正 dirtycheater「立即完成当前科技」对 SMS 科技树的匹配。</summary>
@@ -217,6 +219,7 @@ namespace TAFHotfixBatch1
             TonnageRepair = GetBool("tonnage_repair", TonnageRepair);
             DesignStatusAudit = GetBool("design_status_audit", DesignStatusAudit);
             DesignStatusFix = GetBool("design_status_fix", DesignStatusFix);
+            ReparationBuildProbe = GetBool("reparation_build_probe", ReparationBuildProbe);
             SuppressPredefPackErrors = GetBool("suppress_predef_pack_errors", SuppressPredefPackErrors);
             CheatTechFix = GetBool("cheat_tech_fix", CheatTechFix);
             ShipTypeProbe = GetBool("shiptype_probe", ShipTypeProbe);
