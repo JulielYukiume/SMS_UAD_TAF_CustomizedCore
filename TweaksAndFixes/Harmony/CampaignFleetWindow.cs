@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using UnityEngine;
 using Il2Cpp;
 using Il2CppTMPro;
@@ -76,8 +76,24 @@ namespace TweaksAndFixes.Harmony
                 }
             }
 
+            // ★ [SMS.1.REP] TAF 为了让"从改造设计直接造船"更顺手，把"建造舰船"按钮**无条件**置为可点，
+            //   完全没判断选中的是不是**赔偿设计**（isReparationDesign）—— 于是赔偿舰"越狱"（越权可造）。
+            //   这一段必须**直接改 TAF 实现**（外部 Harmony 补丁改不到这一句），因此每次
+            //   `CampaignFleetWindow.cs` 被上游/合并覆盖后都要重新打回。
+            //   完整说明与恢复步骤：docs/58-reparation-design-lockdown.md
             if (G.ui.FleetWindow.selectedElements.Count > 0)
-                G.ui.FleetWindow.BuildShip.interactable = true;
+            {
+                bool isReparationDesign = false;
+                try
+                {
+                    Ship selected = G.ui.FleetWindow.selectedElements[0].CurrentShip;
+                    if (selected != null)
+                        isReparationDesign = selected.isReparationDesign;
+                }
+                catch { }
+
+                G.ui.FleetWindow.BuildShip.interactable = !isReparationDesign;
+            }
 
             if (G.ui.FleetWindow.selectedElements.Count == 0)
             {
