@@ -3529,6 +3529,87 @@ namespace TweaksAndFixes
             }));
             dropdown.SetValue(TAF_Settings.settings.refitDateFormat, false);
 
+              // [SMS.1.UI] 3.22 B5 的三个设置项：Ocean Type / Predef Mode / Shared Mode
+              {
+                  GameObject oceanType = GameObject.Instantiate(languageDropdown);
+                  oceanType.name = "OceanTypeDropdown";
+                  oceanType.transform.SetParent(GeneralOptionsContent);
+                  oceanType.transform.SetScale(1, 1, 1);
+                  SetLocalizedTextTag(oceanType.GetChild("Label"), "$TAF_Ui_Settings_OceanTypeDropdown");
+
+                  TMP_Dropdown od = oceanType.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
+                  od.ClearOptions();
+                  var oOptions = new Il2CppSystem.Collections.Generic.List<string>();
+                  oOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_OceanTypeDropdownOptions_Default"));
+                  oOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_OceanTypeDropdownOptions_Simple"));
+                  oOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_OceanTypeDropdownOptions_None"));
+                  od.AddOptions(oOptions);
+                  od.onValueChanged.RemoveAllListeners();
+                  od.onValueChanged.AddListener(new System.Action<int>((int i) => {
+                      SetSaveSettingsButtonActive();
+                      Melon<TweaksAndFixes>.Logger.Msg($"Set Ocean Type: {oOptions[i]} (#{i})");
+                      TAF_Settings.settings.oceanType = i;
+                  }));
+                  od.SetValue(TAF_Settings.settings.oceanType, false);
+              }
+
+              {
+                  GameObject predefMode = GameObject.Instantiate(languageDropdown);
+                  predefMode.name = "PredefModeDropdown";
+                  predefMode.transform.SetParent(GeneralOptionsContent);
+                  predefMode.transform.SetScale(1, 1, 1);
+                  SetLocalizedTextTag(predefMode.GetChild("Label"), "$TAF_Ui_Settings_PredefModeDropdown");
+
+                  TMP_Dropdown pd = predefMode.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
+                  pd.ClearOptions();
+                  var pOptions = new Il2CppSystem.Collections.Generic.List<string>();
+                  pOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_PredefModeDropdown_Off"));
+                  pOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_PredefModeDropdown_Mixed"));
+                  pOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_PredefModeDropdown_Always"));
+                  pd.AddOptions(pOptions);
+                  pd.onValueChanged.RemoveAllListeners();
+                  pd.onValueChanged.AddListener(new System.Action<int>((int i) => {
+                      SetSaveSettingsButtonActive();
+                      Melon<TweaksAndFixes>.Logger.Msg($"Set Predef Mode: {pOptions[i]} (#{i})");
+                      try
+                      {
+                          var cc = CampaignController.Instance;
+                          if (cc != null) cc.designsUsage = (CampaignController.DesignsUsage)i;
+                      }
+                      catch { }
+                  }));
+                  pd.SetValue(0, false);
+              }
+
+              {
+                  GameObject sharedMode = GameObject.Instantiate(languageDropdown);
+                  sharedMode.name = "SharedModeDropdown";
+                  sharedMode.transform.SetParent(GeneralOptionsContent);
+                  sharedMode.transform.SetScale(1, 1, 1);
+                  SetLocalizedTextTag(sharedMode.GetChild("Label"), "$TAF_Ui_Settings_SharedModeDropdown");
+
+                  TMP_Dropdown sd = sharedMode.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
+                  sd.ClearOptions();
+                  var sOptions = new Il2CppSystem.Collections.Generic.List<string>();
+                  sOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_SharedModeDropdown_Off"));
+                  sOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_SharedModeDropdown_Selective"));
+                  sOptions.Add(ModUtils.LocalizeF("$TAF_Ui_Settings_SharedModeDropdown_Always"));
+                  sd.AddOptions(sOptions);
+                  sd.onValueChanged.RemoveAllListeners();
+                  sd.onValueChanged.AddListener(new System.Action<int>((int i) => {
+                      SetSaveSettingsButtonActive();
+                      Melon<TweaksAndFixes>.Logger.Msg($"Set Shared Mode: {sOptions[i]} (#{i})");
+                      try
+                      {
+                          var cc = CampaignController.Instance;
+                          if (cc != null) cc.SharedDesignsUsage = (CampaignController.SharedDesignUsage)i;
+                      }
+                      catch { }
+                  }));
+                  sd.SetValue(0, false);
+              }
+
+
             // Global/Ui/UiMain/Popup/Options Window/Root/RightSide/Sound/Viewport/Content/General Volume
 
             // Global/Ui/UiMain/Popup/Options Window/Root/RightSide/Graphic Options/Viewport/Content
@@ -3609,6 +3690,8 @@ namespace TweaksAndFixes
              3: YYYY/MM    | 1930/02
              */
             public int refitDateFormat { get; set; }
+        /// <summary>[SMS.1.UI] 海洋类型（0=默认 / 1=简单 / 2=无）。3.22 B5 的设置项。</summary>
+        public int oceanType { get; set; }
 
             public TAF_Settings()
             {
@@ -3618,6 +3701,7 @@ namespace TweaksAndFixes
                 showMapImage = true;
                 deckPropCoverage = 50;
                 refitDateFormat = 0;
+                oceanType = 0;
             }
         }
 
