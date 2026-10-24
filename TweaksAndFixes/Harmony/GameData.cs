@@ -43,7 +43,6 @@ namespace TweaksAndFixes
             GenArmorData.LoadData();
             AccuraciesExInfo.LoadData();
             MountOverrideData.LoadData();
-        HullData.LoadData();
 
             // Disable `Mising required mount ...` error when starting battle. It's harmless.
             Part.flagCheckCorrectMounting = false;
