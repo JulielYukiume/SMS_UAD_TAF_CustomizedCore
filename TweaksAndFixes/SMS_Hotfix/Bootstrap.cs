@@ -33,6 +33,7 @@ namespace TAFHotfixBatch1
             Modules.CheatTechFix.Install(harmony);
             Modules.ShipTypeProbe.Install(harmony);
             Modules.ShipTypeSupportApply.Install(harmony);
+            Modules.TonnageCheck.Install(harmony);
             Modules.IsPartAvailableProbe.Install(harmony);
             Modules.HullTypeDump.Install(harmony);
             Modules.ConstructorTypeProbe.Install(harmony);
