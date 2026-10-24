@@ -104,23 +104,35 @@ namespace TAFHotfixBatch1.Modules
                 try { bonus = ship.beamDraughtBonus; } catch { }
                 if (bonus <= 0.0001f) bonus = 1f;
 
-                float original = current / bonus;
-                float diff = Math.Abs(original - designTonnage);
-                float ratio = diff / designTonnage;
+                float directDiff = Math.Abs(current - designTonnage);
+                float directRatio = directDiff / designTonnage;
 
-                if (ratio > 0.02f)
+                // ① 与设计直接一致 ⇒ 正常，**不输出**
+                if (directRatio <= 0.02f) continue;
+
+                // ② 直接不一致时，才用"原始吨位（船宽吃水之前）"筛查
+                float original = current / bonus;
+                float origDiff = Math.Abs(original - designTonnage);
+                float origRatio = origDiff / designTonnage;
+
+                if (origRatio <= 0.02f)
+                {
+                    // 可由船宽/吃水修正解释 ⇒ 仅提示，不算坏档
+                    if (_n++ < 30)
+                        HotfixLog.Info("[SMS.1.TON] explained '" + SafeName(ship) + "': tonnage="
+                                       + current.ToString("0.##") + " ≈ design×bonus("
+                                       + designTonnage.ToString("0.##") + "×" + bonus.ToString("0.####") + ")");
+                }
+                else
                 {
                     bad++;
-                    HotfixLog.Warn("[SMS.1.TON] '" + SafeName(ship) + "': tonnage=" + current.ToString("0.##")
-                                   + " 原始≈" + original.ToString("0.##")
+                    HotfixLog.Warn("[SMS.1.TON] MISMATCH '" + SafeName(ship) + "': tonnage="
+                                   + current.ToString("0.##")
                                    + " design=" + designTonnage.ToString("0.##")
-                                   + " 差=" + (ratio * 100f).ToString("0.##") + "%"
-                                   + " (bonus=" + bonus.ToString("0.####") + ")");
-                }
-                else if (_n++ < 20)
-                {
-                    HotfixLog.Info("[SMS.1.TON] ok '" + SafeName(ship) + "': " + current.ToString("0.##")
-                                   + " ≈ design " + designTonnage.ToString("0.##"));
+                                   + " (直接差 " + (directRatio * 100f).ToString("0.##") + "%"
+                                   + ", 原始≈" + original.ToString("0.##") + " 差 "
+                                   + (origRatio * 100f).ToString("0.##") + "%, bonus="
+                                   + bonus.ToString("0.####") + ")");
                 }
             }
 
