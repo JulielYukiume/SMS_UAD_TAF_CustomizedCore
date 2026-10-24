@@ -123,3 +123,47 @@ powershell -File tools/fidelity.ps1 -A docs/generated/sms1-322port/06-methods.ts
 4. **P4**：`CampaignEventSystem` 等二线缺口
 
 每批完成后重跑 `fidelity.ps1`，以"哈希一致率"作为进度指标（当前 68.1%）。
+
+---
+
+## 8. 舯段/首尾段错色：排查记录（2026-10-24 深夜）
+
+### 8.1 已排除的假设（都实测过）
+
+| # | 假设 | 做法 | 结果 |
+| --- | --- | --- | --- |
+| 1 | 与 `hullData.csv` 的 `sectioning` 有关 | 移植 HullData + UpdateSections | ❌ CSV 里 206 条全是 `cyclical`/空，无数据可用 |
+| 2 | 段重建后缺 `OnRenderersWasChanged` | Postfix 补调用 | ❌ 无变化 |
+| 3 | `Ship.RefreshHull` 的 3.22 重写本身 | **完整移植 duke 源码**（31e3af3，338 行） | ❌ 色差仍在（但该移植保留，属 3.22 正确实现） |
+
+### 8.2 剩余差异（TafInspector 07-harmony.tsv 对比）
+
+我方 551 个 patch，Beta6 605 个；**Beta6 有、我方没有的仅 16 条**：
+
+| Patch 类型 | 数量 | 是否与颜色相关 |
+| --- | --- | --- |
+| `Patch_Decor`（duke 版） | 3 | 否（我们有自研 DecorFix） |
+| `Patch_DecalsManager` | 3 | 否（弹着贴花） |
+| `Patch_Effect` | 6 | 否（贴花口径） |
+| `Patch_Util` | 1 | 待查 |
+| `Patch_WarPreparationWindow` | 3 | 否（战争赔款 UI） |
+
+⇒ **在 Harmony 补丁层面，没有"材质/颜色"相关的缺口**。
+
+### 8.3 新假设：色差可能由**数据文件**决定，而非代码
+
+Beta5/Beta6 的发布包是"**完整套件**"（docs/13 §1），除 DLL 外还带 `Default_Files`（含 `partModels.csv` / `parts.csv` / `oceanGraphics.csv`）。
+本工作区**未归档**这些数据文件（只有 DLL），所以我们一直用游戏原版 CSV 测试。
+
+⇒ 若 duke 是通过更新 `partModels.csv`（材质列）/`parts.csv` 修掉错色，那么无论怎么移植代码都不会复现修复效果。
+
+**验证方式**：拿到 Beta5/Beta6 包里的 `partModels.csv`、`parts.csv`、`oceanGraphics.csv`，用同一 DLL 对比：
+- 换数据即可变色 ⇒ 数据修复；
+- 换数据无变化 ⇒ 仍在代码里，继续找。
+
+### 8.4 当前结论
+
+色差**不是** RefreshHull 重写能解决的（已实测），也**不是** HullData/sectioning（无数据）。
+下一步优先级：
+1. 取得 Beta6 的 `Default_Files` 数据文件做对照（最快判定）；
+2. 同时继续移植剩余 B5/B6 特性（oceanType、citadel、事件系统等），不为此停滞。
