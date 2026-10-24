@@ -69,6 +69,37 @@ namespace TAFHotfixBatch1.Modules
             }
         }
 
+
+        /// <summary>
+        /// [SMS.1.E] 重算但**不污染 tonnage**。
+        ///
+        /// 实测（2026-10-25 濮阳）：`CalcWeightAndCost(true,true)` 会把 `ship.tonnage`
+        /// 写成"设计吨位 × beamDraughtBonus"（例：1700 × 0.9412 = 1600），
+        /// 与"tonnage 必须等于 design.tonnage"的指纹判据冲突，且会随存档落盘。
+        ///
+        /// 因此：重算前记录 tonnage，重算后回写为**设计值**（design.tonnage）。
+        /// beam/draught 是玩家输入，同样保护。
+        /// </summary>
+        internal static void RecalcKeepTonnage(Ship s)
+        {
+            if (s == null) return;
+
+            float t0 = 0f, b0 = 0f, d0 = 0f;
+            try { t0 = s.tonnage; } catch { }
+            try { b0 = s.beam; } catch { }
+            try { d0 = s.draught; } catch { }
+
+            try { s.NeedRecalcStats(); } catch { }
+            try { s.CalcWeightAndCost(true, true); } catch { }
+
+            try { s.beam = b0; } catch { }
+            try { s.draught = d0; } catch { }
+
+            float target = t0;
+            try { if (s.design != null && s.design.tonnage > 0f) target = s.design.tonnage; } catch { }
+            try { s.tonnage = target; } catch { }
+        }
+
         internal static void Postfix_RefitShipsStart(PlayerController __instance,
                                                      Il2CppSystem.Collections.Generic.List<Ship> shipList,
                                                      Ship refitDesign, bool isPlayer)
@@ -169,8 +200,7 @@ namespace TAFHotfixBatch1.Modules
                 }
                 else
                 {
-                    try { s.NeedRecalcStats(); } catch { }
-                    try { s.CalcWeightAndCost(true, true); ok++; } catch { }
+                    try { RecalcKeepTonnage(s); ok++; } catch { }
                 }
 
                 sw.Stop();
@@ -207,7 +237,7 @@ namespace TAFHotfixBatch1.Modules
                 if (src == null)
                 {
                     HotfixLog.Warn("[SMS.1.E] '" + SafeName(ship) + "': design ToStore() failed -- fallback to recalc");
-                    try { ship.NeedRecalcStats(); ship.CalcWeightAndCost(true, true); return true; } catch { return false; }
+                    try { RecalcKeepTonnage(ship); return true; } catch { return false; }
                 }
 
                 // ---- 把"船专属"字段并入设计 store ----
@@ -275,19 +305,19 @@ namespace TAFHotfixBatch1.Modules
                 //   不调用 RefreshDecor() / ConstructorM.ReloadModels()（那才是 3D/模型部分）。
                 if (HotfixParams.RefitFullRecalc)
                 {
-                    try { ship.NeedRecalcStats(); } catch { }
+                    // (tonnage 保护由 RecalcKeepTonnage 负责)
                     try { ship.RefreshHull(true); }
                     catch (Exception e) { HotfixLog.Warn("[SMS.1.E] '" + SafeName(ship) + "': RefreshHull failed: " + e.Message); }
                     try { ship.RefreshMounts(); }
                     catch (Exception e) { HotfixLog.Warn("[SMS.1.E] '" + SafeName(ship) + "': RefreshMounts failed: " + e.Message); }
-                    try { ship.CalcWeightAndCost(true, true); }
+                    try { RecalcKeepTonnage(ship); }
                     catch (Exception e) { HotfixLog.Warn("[SMS.1.E] '" + SafeName(ship) + "': CalcWeightAndCost failed: " + e.Message); }
                 }
 
                 if (HotfixParams.RefitForceRecalc)
                 {
-                    try { ship.NeedRecalcStats(); } catch { }
-                    try { ship.CalcWeightAndCost(true, true); okCost = true; }
+                    // (tonnage 保护由 RecalcKeepTonnage 负责)
+                    try { RecalcKeepTonnage(ship); okCost = true; }
                     catch (Exception e) { HotfixLog.Warn("[SMS.1.E] '" + SafeName(ship) + "': CalcWeightAndCost failed: " + e.Message); }
                 }
                 else
@@ -328,8 +358,7 @@ namespace TAFHotfixBatch1.Modules
                 float before = -1f, after = -1f;
                 try { before = s.Cost(); } catch { }
 
-                try { s.NeedRecalcStats(); } catch { }
-                try { s.CalcWeightAndCost(true, true); ok++; }
+                try { RecalcKeepTonnage(s); ok++; }
                 catch (Exception e) { HotfixLog.Warn("[SMS.1.E] deferred CalcWeightAndCost failed: " + e.Message); }
 
                 try { after = s.Cost(); } catch { }
