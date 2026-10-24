@@ -51,9 +51,13 @@ namespace TAFHotfixBatch1.Modules
                     return;
                 }
 
-                harmony.Patch(m, postfix: new HarmonyMethod(
-                    AccessTools.Method(typeof(RefitCostRefresh), nameof(Postfix_RefitShipsStart))));
-
+                // ★ 与 3.22 的 Patch_PlayerController_RefitShipsStart 共存：
+                //   对方在同一方法上挂了 Prefix/Postfix，其 Postfix 会**立刻** CalcWeightAndCost(true,true)，
+                //   用的是尚未结算完的状态（正是 E 模块要避免的）。我们置 Priority.Last 确保在它之后运行：
+                //   先让它算，再由我们置失效标记 + 两帧后重算，最终值以我们的为准。
+                var hmE = new HarmonyMethod(AccessTools.Method(typeof(RefitCostRefresh), nameof(Postfix_RefitShipsStart)));
+                hmE.priority = Priority.Last;
+                harmony.Patch(m, postfix: hmE);
                 HotfixLog.Info("[SMS.1.E] RefitCostRefresh: patched PlayerController::RefitShipsStart"
                                + "  (overwrite state from refit design + recalc cost)"
                                + "  overwrite=" + (HotfixParams.RefitStateOverwrite ? 1 : 0)
