@@ -96,11 +96,13 @@ namespace TAFHotfixBatch1.Modules
                 HotfixLog.Warn("[SMS.1.STA] design '" + name + "' status=" + status
                                + " reparation=" + isRep + " index=" + i);
 
-                if (HotfixParams.DesignStatusFix)
+                // 只把 status==1（Normal）的设计改回 0：
+                // 设计不应该是"在役"状态；status=7（Erased）是正常的"已删除设计"，保持不动。
+                if (HotfixParams.DesignStatusFix && status == 1)
                 {
                     try
                     {
-                        ship.status = (Ship.Status)0;
+                        ship.status = (VesselEntity.Status)0;
                         fixedCount++;
                         HotfixLog.Info("[SMS.1.STA] FIXED '" + name + "' status " + status + " -> 0");
                     }

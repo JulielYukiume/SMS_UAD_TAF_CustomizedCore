@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -72,7 +72,7 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.STA] 设计 status 稽核（只读）。</summary>
         internal static bool DesignStatusAudit = true;
         /// <summary>[SMS.1.STA] 把 status!=0 的设计统一置 0（默认关）。</summary>
-        internal static bool DesignStatusFix = false;
+        internal static bool DesignStatusFix = true;
         /// <summary>[L] 抑制 TAF 的 "has no valid predefined designs" 逐包报错（噪音，非真缺口）。</summary>
         internal static bool SuppressPredefPackErrors = true;
         /// <summary>[T] 修正 dirtycheater「立即完成当前科技」对 SMS 科技树的匹配。</summary>

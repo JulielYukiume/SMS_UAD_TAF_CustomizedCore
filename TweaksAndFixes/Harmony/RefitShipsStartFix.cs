@@ -31,6 +31,24 @@ namespace TweaksAndFixes
                 var ship = shipList[0];
                 if (ship == null) return;
 
+                // ★ [SMS.1.A] 新生成的改造设计必须 status=0（None）。
+                //   默认新建的设计会带 status=1（Normal），带这个状态的设计会被当成"实船"，
+                //   进而被 B 系列误判、也会让它出现在可造/在役列表里。
+                try
+                {
+                    if (refitDesign != null && refitDesign.isDesign)
+                    {
+                        int oldStatus = (int)refitDesign.status;
+                        if (oldStatus != 0)
+                        {
+                            refitDesign.status = (VesselEntity.Status)0;
+                            HotfixLog.Info("[SMS.1.A] refit design status normalised: '"
+                                           + refitDesign.vesselName + "' " + oldStatus + " -> 0");
+                        }
+                    }
+                }
+                catch { }
+
                 ship.cachedSizeAntiRatio = -1f;
                 ship.cachedSizeRatio = -1f;
                 ship.rotationSpeed_cached = -1f;
