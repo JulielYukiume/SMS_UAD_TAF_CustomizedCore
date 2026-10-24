@@ -61,7 +61,24 @@ namespace TAFHotfixBatch1.Modules
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.REP] overload(Ship,int,out string): " + e.Message); }
 
-            HotfixLog.Info("[SMS.1.REP] armed on " + n + "/2 overload(s)"
+
+            // ★ UI 层放行（"建造"按钮可点、能选数量）说明 gate 在 UI 而不是 CanBuildShipsFromDesign。
+            //   这里再加一道**执行层**拦截：真正建造时直接拒绝，返回空列表，避免产生赔偿舰。
+            try
+            {
+                var mb = AccessTools.Method(typeof(PlayerController), "BuildShipsFromDesign",
+                    new Type[] { typeof(Ship), typeof(int), typeof(bool), typeof(Player) });
+                if (mb != null)
+                {
+                    harmony.Patch(mb, prefix: new HarmonyMethod(
+                        AccessTools.Method(typeof(ReparationBuildProbe), nameof(Prefix_BuildShipsFromDesign))));
+                    n++;
+                    HotfixLog.Info("[SMS.1.REP] BuildShipsFromDesign blocked at execution layer");
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.REP] BuildShipsFromDesign: " + e.Message); }
+
+            HotfixLog.Info("[SMS.1.REP] armed on " + n + " hook(s)"
                            + "  block=" + (HotfixParams.ReparationDesignBlock ? 1 : 0)
                            + "  probe=" + (HotfixParams.ReparationBuildProbe ? 1 : 0));
         }
@@ -92,6 +109,31 @@ namespace TAFHotfixBatch1.Modules
                 }
             }
             catch { }
+        }
+
+        /// <summary>[SMS.1.REP] 执行层拦截：赔偿设计不允许建造。</summary>
+        internal static bool Prefix_BuildShipsFromDesign(Ship design, int amount,
+                                                         ref Il2CppSystem.Collections.Generic.List<Ship> __result,
+                                                         ref bool __runOriginal)
+        {
+            try
+            {
+                if (design == null) return true;
+
+                bool isRep = false;
+                try { isRep = design.isReparationDesign; } catch { }
+                if (!isRep || !HotfixParams.ReparationDesignBlock) return true;
+
+                string name = "";
+                try { name = design.vesselName; } catch { }
+
+                HotfixLog.Info("[SMS.1.REP] build REFUSED (execution layer): '" + name
+                               + "' amount=" + amount);
+
+                __result = new Il2CppSystem.Collections.Generic.List<Ship>();
+                return false;
+            }
+            catch { return true; }
         }
 
         internal static void Postfix_NoAmount(Ship design, ref string reason, ref bool __result)
