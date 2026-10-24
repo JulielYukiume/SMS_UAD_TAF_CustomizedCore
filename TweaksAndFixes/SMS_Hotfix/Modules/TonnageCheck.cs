@@ -134,6 +134,22 @@ namespace TAFHotfixBatch1.Modules
                 else
                 {
                     bad++;
+
+                    // [SMS.1.TON] 可选修复：把 tonnage 回填为设计值（默认关，tonnage_repair=1 开启）
+                    if (HotfixParams.TonnageRepair)
+                    {
+                        try
+                        {
+                            ship.tonnage = designTonnage;
+                            HotfixLog.Info("[SMS.1.TON] REPAIRED '" + SafeName(ship) + "': "
+                                           + current.ToString("0.##") + " -> " + designTonnage.ToString("0.##"));
+                        }
+                        catch (Exception ex)
+                        {
+                            HotfixLog.Warn("[SMS.1.TON] repair failed: " + ex.Message);
+                        }
+                    }
+
                     HotfixLog.Warn("[SMS.1.TON] MISMATCH '" + SafeName(ship) + "': tonnage="
                                    + current.ToString("0.##")
                                    + " design=" + designTonnage.ToString("0.##")
