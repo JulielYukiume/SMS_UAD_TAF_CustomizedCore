@@ -107,17 +107,25 @@ namespace TAFHotfixBatch1.Modules
                 float directDiff = Math.Abs(current - designTonnage);
                 float directRatio = directDiff / designTonnage;
 
-                // ① 与设计直接一致 ⇒ 正常，**不输出**
-                if (directRatio <= 0.02f) continue;
+                // ① 严格判据（默认）：tonnage 必须与 design 完全一致（浮点容差 0.1 吨）
+                //    这是"五项指纹"里对吨位的要求，故意不放宽，以便区分"当时就错"与"后来改坏"。
+                if (HotfixParams.TonnageCheckStrict)
+                {
+                    if (directDiff <= 0.1f) continue;
+                }
+                else
+                {
+                    if (directRatio <= 0.02f) continue;
+                }
 
                 // ② 直接不一致时，才用"原始吨位（船宽吃水之前）"筛查
                 float original = current / bonus;
                 float origDiff = Math.Abs(original - designTonnage);
                 float origRatio = origDiff / designTonnage;
 
-                if (origRatio <= 0.02f)
+                if (!HotfixParams.TonnageCheckStrict && origRatio <= 0.02f)
                 {
-                    // 可由船宽/吃水修正解释 ⇒ 仅提示，不算坏档
+                    // 宽松模式：可由船宽/吃水修正解释 ⇒ 仅提示，不算坏档
                     if (_n++ < 30)
                         HotfixLog.Info("[SMS.1.TON] explained '" + SafeName(ship) + "': tonnage="
                                        + current.ToString("0.##") + " ≈ design×bonus("

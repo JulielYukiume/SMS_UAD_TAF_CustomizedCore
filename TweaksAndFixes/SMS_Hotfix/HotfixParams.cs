@@ -65,6 +65,8 @@ namespace TAFHotfixBatch1
         internal static bool PredefForceOff = true;
         /// <summary>[SMS.1.TON] 实存船原始吨位校验（只读）。</summary>
         internal static bool TonnageCheck = true;
+        /// <summary>[SMS.1.TON] 严格判据：tonnage 必须与 design 完全一致（容差 0.1 吨）。</summary>
+        internal static bool TonnageCheckStrict = true;
         /// <summary>[L] 抑制 TAF 的 "has no valid predefined designs" 逐包报错（噪音，非真缺口）。</summary>
         internal static bool SuppressPredefPackErrors = true;
         /// <summary>[T] 修正 dirtycheater「立即完成当前科技」对 SMS 科技树的匹配。</summary>
@@ -205,6 +207,7 @@ namespace TAFHotfixBatch1
             PredefAliasFallback = GetBool("predef_alias_fallback", PredefAliasFallback);
             PredefForceOff = GetBool("predef_force_off", PredefForceOff);
             TonnageCheck = GetBool("tonnage_check", TonnageCheck);
+            TonnageCheckStrict = GetBool("tonnage_check_strict", TonnageCheckStrict);
             SuppressPredefPackErrors = GetBool("suppress_predef_pack_errors", SuppressPredefPackErrors);
             CheatTechFix = GetBool("cheat_tech_fix", CheatTechFix);
             ShipTypeProbe = GetBool("shiptype_probe", ShipTypeProbe);
