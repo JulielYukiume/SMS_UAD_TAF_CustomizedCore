@@ -154,7 +154,7 @@ namespace TweaksAndFixes
 
                 if (rends != null)
                 {
-                    for (int i = 0; i < rends.Length && i < 3; i++)
+                    for (int i = 0; i < rends.Length && i < 12; i++)
                     {
                         var r = rends[i];
                         if (r == null) continue;
@@ -168,11 +168,24 @@ namespace TweaksAndFixes
                         }
                         catch { }
 
+                        string goName = "?";
+                        try { goName = r.gameObject.name; } catch { }
+                        bool en = false;
+                        try { en = r.enabled; } catch { }
+                        string lodInfo = "";
+                        try
+                        {
+                            var lg = r.GetComponentInParent<LODGroup>();
+                            if (lg != null) lodInfo = " lodGroup=" + lg.name;
+                        }
+                        catch { }
                         sb.Append("  [r").Append(i)
+                          .Append(" go=").Append(goName)
+                          .Append(" enabled=").Append(en)
                           .Append(" mat=").Append(mat)
                           .Append("#").Append(matId)
-                          .Append(" recvShadow=").Append(r.receiveShadows)
                           .Append(" cast=").Append(r.shadowCastingMode)
+                          .Append(lodInfo)
                           .Append("]");
                     }
                 }
