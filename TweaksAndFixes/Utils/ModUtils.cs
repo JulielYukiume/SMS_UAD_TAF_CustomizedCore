@@ -33,7 +33,7 @@ namespace TweaksAndFixes
         }
     }
 
-    public static class ModUtils
+    public static partial class ModUtils
     {
         // Due to an Il2Cpp interop issue, you can't actually pass null nullables, you have to pass
         // nullables _with no value_. So we're going to just store a bunch of statics here we can use
