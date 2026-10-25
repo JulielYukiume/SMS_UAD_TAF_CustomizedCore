@@ -114,6 +114,55 @@ namespace TweaksAndFixes
             sb.Append(go.name).Append(" active=").Append(go.activeSelf);
             try { sb.Append(" z=").Append(go.transform.localPosition.z.ToString("0.00")); } catch { }
 
+            // ★ [SMS.1.MAT] 朝向/法线信息：负缩放会让网格法线翻转 ⇒ 光照下呈暗块
+            try
+            {
+                var tr0 = go.transform;
+                var ls = tr0.localScale;
+                var lossy = tr0.lossyScale;
+                sb.Append(" localScale=(")
+                  .Append(ls.x.ToString("0.###")).Append(",")
+                  .Append(ls.y.ToString("0.###")).Append(",")
+                  .Append(ls.z.ToString("0.###")).Append(")")
+                  .Append(" lossy=(")
+                  .Append(lossy.x.ToString("0.###")).Append(",")
+                  .Append(lossy.y.ToString("0.###")).Append(",")
+                  .Append(lossy.z.ToString("0.###")).Append(")");
+                if (ls.x < 0 || ls.y < 0 || ls.z < 0 || lossy.x < 0 || lossy.y < 0 || lossy.z < 0)
+                    sb.Append("  ⚠NEGATIVE_SCALE");
+            }
+            catch { }
+
+            // 法线抽样：取第一个有 MeshFilter 的渲染器，累加法线（世界空间 Y/Z 分量）
+            try
+            {
+                MeshFilter mf = null;
+                try { mf = go.GetComponentInChildren<MeshFilter>(); } catch { }
+                var mesh = mf != null ? mf.sharedMesh : null;
+                if (mesh != null)
+                {
+                    var norms = mesh.normals;
+                    if (norms != null && norms.Length > 0)
+                    {
+                        float sumY = 0f, sumZ = 0f, sumX = 0f;
+                        int step = Math.Max(1, norms.Length / 200);
+                        int n = 0;
+                        for (int i = 0; i < norms.Length; i += step)
+                        {
+                            var v = norms[i];
+                            sumX += v.x; sumY += v.y; sumZ += v.z; n++;
+                        }
+                        if (n > 0)
+                            sb.Append("  normals(n=").Append(n).Append(") avg=(")
+                              .Append((sumX / n).ToString("0.###")).Append(",")
+                              .Append((sumY / n).ToString("0.###")).Append(",")
+                              .Append((sumZ / n).ToString("0.###")).Append(")");
+                    }
+                    else sb.Append("  normals=none");
+                }
+            }
+            catch (Exception e) { sb.Append("  normals err ").Append(e.Message); }
+
             // ★ 子对象名单（用于对比"复制段 vs 原始段"缺了哪些）
             try
             {
