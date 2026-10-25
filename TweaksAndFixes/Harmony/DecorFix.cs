@@ -214,22 +214,53 @@ namespace TweaksAndFixes
             }
         }
 
+        private static int _awakeEmpty;
+
+        /// <summary>
+        /// [SMS.1.DECOR] 前置拦截：**没有子渲染器**的 `Decor` 直接跳过原版 `Awake`。
+        ///
+        /// 为什么必须用 Prefix 而不是 Finalizer（2026-10-26 实测）：
+        ///   `Decor.Awake` 是 IL2CPP 原生方法，它内部的 `Enumerable.Aggregate` 抛出的
+        ///   `InvalidOperationException` 是在**原生侧**产生的，由 Il2CppInterop 的
+        ///   `RaiseExceptionIfNecessary` 在托管 detour **之外**转换并抛出 ⇒
+        ///   Harmony 的 Finalizer **捕获不到**（port31 加了 Finalizer 但日志仍在，即此原因）。
+        ///   唯一可靠做法：在调用原方法**之前**判断，条件成立就不执行原方法。
+        ///
+        /// 判据：`GetComponentsInChildren&lt;Renderer&gt;()` 为空。
+        /// 这类 Decor 没有可见网格，原版 `Awake` 的"重叠检查注册"本来也无对象可注册，
+        /// 跳过它不会损失功能，只是避免抛异常。
+        /// </summary>
+        [HarmonyPrefix]
+        [HarmonyPatch("Awake")]
+        internal static bool Prefix_Awake(Decor __instance)
+        {
+            try
+            {
+                if (__instance == null) return true;
+
+                foreach (var r in __instance.GetComponentsInChildren<Renderer>())
+                {
+                    if (r != null) return true;   // 有渲染器 ⇒ 走原版
+                }
+
+                _awakeEmpty++;
+                if (_awakeEmpty == 1 || _awakeEmpty % 50 == 0)
+                    HotfixLog.Info("[SMS.1.DECOR] Decor.Awake 跳过空渲染器实例（累计 " + _awakeEmpty + " 次）");
+
+                return false; // 跳过原方法，避免 Aggregate 空集合异常
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
         private static int _awakeFail;
 
         /// <summary>
-        /// [SMS.1.DECOR] 吸收原版 `Decor.Awake` 内部的 `InvalidOperationException: Sequence contains no elements`。
-        ///
-        /// 现象（2026-10-26 日志，port30）：主菜单封面船/游戏内加载时会刷出成对错误：
-        ///     [ERROR] [Il2CppInterop] During invoking native->managed trampoline
-        ///     System.InvalidOperationException: Sequence contains no elements
-        ///     at System.Linq.Enumerable.Aggregate ... at Decor.Awake ()
-        ///
-        /// 原因：`Decor.Awake` 会对"子渲染器集合"做 `Aggregate`，当某个 Decor 实例**没有任何子渲染器**时
-        /// （例如由 3.22 的 `LoadUnloadModel` 快速装载、模型尚未挂全，或程序化生成的装饰件），
-        /// 原版没有空集合保护 ⇒ 直接抛异常。
-        ///
-        /// 处理：用 Finalizer 吞掉这个**特定异常**（其它异常原样抛回），并只在首次 + 每 50 次记一条日志。
-        /// 不改变原方法逻辑，也不影响已有 Postfix。
+        /// （保留）原版 `Decor.Awake` 内部异常吸收 —— 对**托管**抛出的异常有效；
+        /// 对 IL2CPP 原生侧抛出的 "Sequence contains no elements" 无效（见上），
+        /// 真正的防线是 `Prefix_Awake`。这里仅作兜底，不删。
         /// </summary>
         [HarmonyFinalizer]
         [HarmonyPatch("Awake")]
