@@ -251,6 +251,18 @@ namespace TweaksAndFixes
                     any = true;
                 }
 
+                // ★★★ [SMS.1.DECOR] 2026-10-26 修正：**有渲染器时交回原版**。
+                //
+                // 之前的版本无条件替代原版 Awake，导致甲板装饰物不再刷出
+                // （port35/38 期间观察到的"装饰物消失"）。原版 Awake 里除了这里重建的
+                // bounds/forceIgnoreX/forceOverlapX/children/layer 之外，还有装饰物初始化所需的
+                // 内部注册（反编译不可见）。⇒ 只在"没有任何子渲染器"（原版会抛
+                // Sequence contains no elements 的那种）才替代，其余一律走原版。
+                if (any)
+                {
+                    return true;   // 交回原版 Awake（它不会抛异常，因为集合非空）
+                }
+
                 // 空集合时 bounds 保持 default —— 这就是不抛异常的关键（原版在此 Aggregate）
                 __instance.bounds = bounds;
 
