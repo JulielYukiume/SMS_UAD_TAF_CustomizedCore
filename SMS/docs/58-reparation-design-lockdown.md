@@ -79,25 +79,22 @@ if (G.ui.FleetWindow.selectedElements.Count > 0)
 2. 进游戏 → 舰队管理（或设计管理）→ 选中一个赔偿设计 → 「建造舰船」按钮应为**灰色不可点**。
 3. 选中普通设计/改造设计 → 按钮可点（确认没有误伤 TAF 的便利功能）。
 
-## 6. 相关代码（执行层兜底，非必须但保留）
+## 6. 已回滚：执行层拦截（勿再启用）
 
-`TweaksAndFixes/SMS_Hotfix/Modules/ReparationBuildProbe.cs`（`[SMS.1.REP]`）：
+2026-10-25 晚实测：在 `CanBuildShipsFromDesign`（两个重载）+ `BuildShipsFromDesign` 上加拦截，
+会连带**禁止保存改造后的赔偿舰设计**（游戏弹「舰船设计无效：无法建造 - (未知问题)」），
+与"赔偿舰复制⇒仿制"的既有功能冲突，因此**已整体删除**
+（`ReparationBuildProbe.cs` 与参数 `reparation_design_block` / `reparation_build_probe` 均已移除）。
 
-| 钩子 | 作用 |
-| --- | --- |
-| `PlayerController.CanBuildShipsFromDesign(Ship, out string)` Postfix | 赔偿设计 ⇒ `false` + reason |
-| `PlayerController.CanBuildShipsFromDesign(Ship, int, out string)` Postfix | 同上（**两个重载都要显式挂**，按名字挂会 `Ambiguous match`） |
-| `PlayerController.BuildShipsFromDesign(Ship, int, bool, Player)` Prefix | 执行层拒绝，返回空列表（防 UI 绕过） |
-
-参数：`reparation_design_block`（默认 1）、`reparation_build_probe`（默认 0）。
-
-> 注意：这两个重载的存在是**必须显式按签名挂载**的原因 —— 曾经的 `Ambiguous match` 导致探针
-> 静默失败、看起来"补丁没生效"。
+> 结论：**只保留 §3 的 UI 层修法**（`CampaignFleetWindow.cs`）。
+> 不要再往 `CanBuildShipsFromDesign` / `BuildShipsFromDesign` 上加拦截 ——
+> 那条路径同时服务于"保存改造设计"，拦了会误伤。
 
 ## 7. 历史
 
 | 时间 | 事件 |
 | --- | --- |
-| 2026-10-18 之前 | sms.0 已修过一次（当时记录：TAF 的 `CampaignFleetWindow` 无条件放行） |
-| 2026-10-19 18:30~19:30 | 确认「改进设计 status 置 0」方案，并确认赔偿设计 `isReparationDesign=true` ⇒ 玩家不可建造 |
-| 2026-10-25 | 重新引入 3.22.0 后该修复丢失（行号漂移/文件被覆盖），赔偿舰再次可造；本文件即为**固化记录** |
+| 2026-10-18 之前 | sms.0 已修过一次（TAF 的 `CampaignFleetWindow` 无条件放行） |
+| 2026-10-19 18:30~19:30 | 确认「改进设计 status 置 0」，并确认赔偿设计 `isReparationDesign=true` ⇒ 玩家不可建造 |
+| 2026-10-25 凌晨 | 重新引入 3.22.0 后修复丢失，赔偿舰再次可造；重打 UI 修法 + 加执行层拦截 |
+| 2026-10-25 晚 | **回滚执行层拦截**（会禁止保存改造设计）；仅保留 UI 修法，本文档即固化记录 |
