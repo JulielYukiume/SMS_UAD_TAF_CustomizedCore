@@ -71,3 +71,44 @@
 | 项 | port |
 | --- | --- |
 | `Decor.Awake` 空集合异常（Beta5 有、Beta6 无） | **port33**（完整替代实现，Beta6 同款） |
+
+---
+
+## 6. 第 2 批（部件预览缓存）实际结论：**我们早就有了**
+
+`TweaksAndFixes/Harmony/Ui.cs`（3.21.1 起就存在）：
+
+| 成员 | 位置 |
+| --- | --- |
+| `PartPreviewCache` / `LastPartPreviewGuid` | L2235-2236 |
+| `Resize(Texture2D, int, int)` | L2238 |
+| `GetPartPreviewGuid(PartData, Ship)` | L2252-2328（gun/torpedo/其它三分支齐全） |
+| `Prefix_GetPartPreviewTex` | L2332 |
+| `Postfix_GetPartPreviewTex` | L2370 |
+
+⇒ worklist 里那几条 "Beta6 独有" 只是**签名/写法差异**（Beta6 用 `TechGunGrade(part, true)` 两参版），
+不是功能缺失。
+
+**唯一真正缺的**是这两个（各 4 行）：
+
+```csharp
+[HarmonyPatch("GetShipPreviewTexGeneric")][HarmonyPrefix]
+static void Prefix(Ui __i) => Patch_SceneManager.ConfigureForPreview(active: false);
+
+[HarmonyPatch("GetShipPreviewTexGeneric")][HarmonyPostfix]
+static void Postfix(Ui __i) => Patch_SceneManager.ConfigureForPreview(active: true);
+```
+
+以及 `CreateAndRefreshSectionsPlanUI` / `RefreshDamagePlan` 的同款 Prefix/Postfix。
+
+⇒ 它们**全部依赖 `Patch_SceneManager.ConfigureForPreview`（B6 静态海面）**，
+所以"第 2 批"实际并入**第 5 批**执行，不能独立完成。
+
+## 7. 修正后的执行顺序
+
+| 顺序 | 批次 | 状态 |
+| --- | --- | --- |
+| 1 | ModUtils（`NumToString` / `SplitSmart`） | ✅ port34 |
+| 2 | 部件预览缓存 | ⏭️ **已有**，仅缺 ConfigureForPreview 钩子 → 并入第 5 批 |
+| 4 | **ShipGen + PartLimits** | ▶ 下一个做 |
+| 5 | Patch_SceneManager + OceanGraphicsData + 预览钩子 + 分段计划 UI | 待第 4 批后 |
