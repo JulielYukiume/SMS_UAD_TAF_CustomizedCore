@@ -27,6 +27,8 @@ namespace TweaksAndFixes
     [HarmonyPatch(typeof(Ship))]
     internal class Patch_Ship_RefreshDecor
     {
+        private static int _hideLog;
+
         // ★★★ [SMS.1.DECOR] 2026-10-26：由 **Prefix(return false 跳过原版)** 改为 **Postfix**。
         //
         // 原因：原版 `Ship.RefreshDecor` 负责**生成甲板装饰物**（poisson 布点、deckPropCoverage 等）。
@@ -60,6 +62,19 @@ namespace TweaksAndFixes
                             __instance.decor.Add(dec);
                         }
                     }
+                }
+
+                // ★ [SMS.1.DECOR] 遮挡隐藏默认关闭（decor_hide_occluded=0）。
+                //   实测（2026-10-26 port45）：即使把 RefreshDecor 改成 Postfix 让原版先生成，
+                //   甲板装饰物仍然不可见 ⇒ 说明是我们的隐藏逻辑把它们全 Show(false) 了
+                //   （dec.bounds 可能为默认值 ⇒ 与任意 part 相交 ⇒ 全部隐藏）。
+                //   先关掉这段，确认装饰物恢复；确认后再逐个修判定条件。
+                if (!HotfixParams.DecorHideOccluded)
+                {
+                    if (_hideLog++ < 3)
+                        HotfixLog.Info("[SMS.1.DECOR] 遮挡隐藏已禁用 (decor_hide_occluded=0)，decor=" 
+                                       + (__instance.decor != null ? __instance.decor.Count : -1));
+                    return;
                 }
 
                 var parts = __instance.parts;
