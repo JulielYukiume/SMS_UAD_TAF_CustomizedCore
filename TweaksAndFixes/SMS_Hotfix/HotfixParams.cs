@@ -51,6 +51,8 @@ namespace TAFHotfixBatch1
         /// 而不是停在"在役但 0 船员"的矛盾状态（默认开）。
         /// </summary>
         internal static bool ReparationMothball = true;
+        /// <summary>[SMS.1.SCENE] 场景结构只读探针。</summary>
+        internal static bool SceneProbe = true;
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>
@@ -207,6 +209,7 @@ namespace TAFHotfixBatch1
             ShipDesignRelink = GetBool("ship_design_relink", ShipDesignRelink);
             ShipDesignRegen = GetBool("ship_design_regen", ShipDesignRegen);
             ReparationMothball = GetBool("reparation_mothball", ReparationMothball);
+            SceneProbe = GetBool("scene_probe", SceneProbe);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);
