@@ -114,6 +114,39 @@ namespace TweaksAndFixes
             sb.Append(go.name).Append(" active=").Append(go.activeSelf);
             try { sb.Append(" z=").Append(go.transform.localPosition.z.ToString("0.00")); } catch { }
 
+            // ★ 子对象名单（用于对比"复制段 vs 原始段"缺了哪些）
+            try
+            {
+                var tr = go.transform;
+                int n = tr.childCount;
+                sb.Append(" children(").Append(n).Append(")=");
+                for (int i = 0; i < n && i < 14; i++)
+                {
+                    var c = tr.GetChild(i);
+                    if (c == null) continue;
+                    sb.Append(c.name);
+                    try { if (!c.gameObject.activeSelf) sb.Append("*"); } catch { }
+                    if (i < n - 1 && i < 13) sb.Append(",");
+                }
+
+                // 渲染器挂在哪些子节点上（只列前 10 个，便于对齐）
+                sb.Append(" rend@=");
+                int shown = 0;
+                for (int i = 0; i < n && shown < 10; i++)
+                {
+                    var c = tr.GetChild(i);
+                    if (c == null) continue;
+                    Renderer r0 = null;
+                    try { r0 = c.GetComponent<Renderer>(); } catch { }
+                    if (r0 == null) continue;
+                    string mn = "?";
+                    try { if (r0.sharedMaterial != null) mn = r0.sharedMaterial.name; } catch { }
+                    sb.Append(c.name).Append(":").Append(mn).Append(" ");
+                    shown++;
+                }
+            }
+            catch (Exception e) { sb.Append(" children err ").Append(e.Message); }
+
             try
             {
                 var rends = go.GetComponentsInChildren<Renderer>();
