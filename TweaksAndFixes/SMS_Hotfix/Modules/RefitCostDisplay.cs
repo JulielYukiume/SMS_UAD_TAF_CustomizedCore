@@ -72,23 +72,37 @@ namespace TAFHotfixBatch1.Modules
                 // 结论：这两个 Postfix 属于**显示层**需求，但影响的属性是**数据层**共用的，
                 //   无法安全区分"显示用"与"初始化用"⇒ 默认关闭（`refit_tonnage_display=0`），
                 //   仅在明确知道后果时用 `refit_tonnage_display=1` 打开。
-                if (HotfixParams.RefitTonnageDisplay)
-                {
-                    foreach (var nm in new string[] { "TonnageMin", "TonnageMax" })
-                    {
-                        var tm = AccessTools.Method(typeof(Ship), nm);
-                        if (tm == null) { HotfixLog.Warn("[SMS.1.E] Ship::" + nm + " not found"); continue; }
-                        harmony.Patch(tm, postfix: new HarmonyMethod(
-                            AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Tonnage))));
-                    }
-                    HotfixLog.Warn("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override ENABLED"
-                                   + " (refit_tonnage_display=1) -- 会在读档时改写改造船的吨位边界");
-                }
-                else
-                {
-                    HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override disabled"
-                                   + " (refit_tonnage_display=0, 防止读档污染 tonnage)");
-                }
+                // ★★★ [SMS.1.E] `TonnageMin/TonnageMax` 接管 —— **已永久停用（2026-10-26 port29）**。
+                //
+                // 历史：这两个 Postfix 曾用于"改造中的船显示改造设计的吨位"。
+                // 实测（石垣 1941 改造档，重读已正确落盘的存档）：
+                //     [SMS.1.E][fix] TonnageMin: ... (Refit) : 10600  -> 9742.53
+                //     [SMS.1.E][fix] TonnageMax: ... (Refit) : 13600  -> 12499.85
+                //   ⇒ 读档时所有 status==Refit 的船，吨位边界被替换成"改造设计 ÷ beamDraughtBonus"，
+                //     而船初始化会用这对边界回算/回填 `tonnage` ⇒ **已经正确落盘的吨位被再次改坏**。
+                //
+                // 为什么不是"加开关"：该 Postfix 影响的是**数据层共用属性**（TonnageMin/Max 同时被
+                // 初始化、船体缩放、航速计算等使用），无法区分"显示用"与"逻辑用"。
+                // 只要挂上就有污染风险，因此**彻底移除挂载**；下面保留注释仅作历史记录。
+                //
+                // 若将来确实需要"改造中显示改造设计吨位"，正确做法是在 UI 层单独取值
+                // （例如 Postfix `CampaignFleetWindow`/`RefitCostDisplay` 的文本拼接处），
+                // **绝不能**改写 `Ship.TonnageMin/TonnageMax`。
+                //
+                // if (HotfixParams.RefitTonnageDisplay)
+                // {
+                //     foreach (var nm in new string[] { "TonnageMin", "TonnageMax" })
+                //     {
+                //         var tm = AccessTools.Method(typeof(Ship), nm);
+                //         if (tm == null) { HotfixLog.Warn("[SMS.1.E] Ship::" + nm + " not found"); continue; }
+                //         harmony.Patch(tm, postfix: new HarmonyMethod(
+                //             AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Tonnage))));
+                //     }
+                //     HotfixLog.Warn("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override ENABLED"
+                //                    + " (refit_tonnage_display=1) -- 会在读档时改写改造船的吨位边界");
+                // }
+                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override 永久停用"
+                               + "（会污染 tonnage，见 docs/61-tonnage-pollution.md）");
 
                 var maint = AccessTools.Method(typeof(Ship), "MaintenanceCost");
                 if (maint != null)
@@ -109,7 +123,6 @@ namespace TAFHotfixBatch1.Modules
         internal static void Postfix_Cost(Ship __instance, ref float __result)
         {
             if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
-            if (!HotfixParams.RefitTonnageDisplay) return;   // 默认不接管 TonnageMin/Max
             if (_inCost) return;
 
             try
@@ -253,38 +266,40 @@ namespace TAFHotfixBatch1.Modules
             catch { }
         }
 
-        /// <summary>`TonnageMin()` / `TonnageMax()` 的共用 Postfix。</summary>
-        internal static void Postfix_Tonnage(Ship __instance, ref float __result, MethodBase __originalMethod)
-        {
-            if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
-            if (_inCost) return;
+        // ★ [SMS.1.E] Postfix_Tonnage 已永久停用（会改写 tonnage，见 docs/61）。原实现保留如下：
+        // /// <summary>`TonnageMin()` / `TonnageMax()` 的共用 Postfix。</summary>
+        // internal static void Postfix_Tonnage(Ship __instance, ref float __result, MethodBase __originalMethod)
+        // {
+        // if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+        // if (_inCost) return;
+        //
+        // try
+        // {
+        // Ship rd = PendingRefitDesign(__instance);
+        // if (rd == null) return;
+        //
+        // string mn = __originalMethod != null ? __originalMethod.Name : "";
+        // _inCost = true;
+        // float v;
+        // try
+        // {
+        // if (mn == "TonnageMax") v = rd.TonnageMax();
+        // else if (mn == "TonnageMin") v = rd.TonnageMin();
+        // else return;
+        // }
+        // finally { _inCost = false; }
+        //
+        // if (v <= 0f) return;
+        // if (Math.Abs(v - __result) < 0.01f) return;
+        //
+        // if (HotfixParams.Verbose && _logged++ < 300)
+        // HotfixLog.Debug("[SMS.1.E][fix] " + mn + ": '" + SafeName(__instance) + "' (Refit) : "
+        // + __result.ToString("0.##") + " -> " + v.ToString("0.##"));
+        // __result = v;
+        // }
+        // catch { }
+        // }
 
-            try
-            {
-                Ship rd = PendingRefitDesign(__instance);
-                if (rd == null) return;
-
-                string mn = __originalMethod != null ? __originalMethod.Name : "";
-                _inCost = true;
-                float v;
-                try
-                {
-                    if (mn == "TonnageMax") v = rd.TonnageMax();
-                    else if (mn == "TonnageMin") v = rd.TonnageMin();
-                    else return;
-                }
-                finally { _inCost = false; }
-
-                if (v <= 0f) return;
-                if (Math.Abs(v - __result) < 0.01f) return;
-
-                if (HotfixParams.Verbose && _logged++ < 300)
-                    HotfixLog.Debug("[SMS.1.E][fix] " + mn + ": '" + SafeName(__instance) + "' (Refit) : "
-                                   + __result.ToString("0.##") + " -> " + v.ToString("0.##"));
-                __result = v;
-            }
-            catch { }
-        }
 
         /// <summary>仅在"船正在改造"且"待应用设计存在"时返回该设计；其余一律 null。</summary>
         private static Ship PendingRefitDesign(Ship s)
