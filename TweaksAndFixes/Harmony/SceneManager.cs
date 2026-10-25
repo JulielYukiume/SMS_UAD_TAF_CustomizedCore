@@ -532,6 +532,9 @@ internal static class Patch_SceneManagerPreview
     internal static GameObject LevelConstructor;
     internal static GameObject LevelBattle;
 
+    /// <summary>[SMS.1.OCEAN] 战斗/构造器场景里的天气对象（由场景配置阶段赋值）。</summary>
+    internal static GameObject DayCycleAndWeatherO;
+
     /// <summary>切换"预览模式"（见上）。未初始化时为空操作。</summary>
     public static void ConfigureForPreview(bool active)
     {
