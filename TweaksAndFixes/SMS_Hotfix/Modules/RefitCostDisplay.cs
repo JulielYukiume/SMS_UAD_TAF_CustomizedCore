@@ -61,13 +61,33 @@ namespace TAFHotfixBatch1.Modules
                 else
                     HotfixLog.Warn("[SMS.1.E] Ship::Weight not found -- displacement display fix inactive");
 
-                // 吨位：界面读的是 Ship::TonnageMin/TonnageMax（不是 store.tonnage）
-                foreach (var nm in new string[] { "TonnageMin", "TonnageMax" })
+                // ★★★ [SMS.1.E] `TonnageMin/TonnageMax` **默认不再接管**（2026-10-25 port28）。
+                //
+                // 实测（石垣 1941 改造 + 存档读回）：
+                //   读档时这两处 Postfix 会把"改造中(status=Refit)"的船的 TonnageMin/Max
+                //   替换成改造设计的值，并乘上/去掉 beamDraughtBonus（10600 -> 9742.53、13600 -> 12499.85），
+                //   随后船在初始化时会用这对边界重算/回填 `tonnage`，把**已经正确落盘的吨位**又改坏。
+                //   ⇒ 读档期间的"显示层修复"会变成"数据层污染"，这是不可接受的。
+                //
+                // 结论：这两个 Postfix 属于**显示层**需求，但影响的属性是**数据层**共用的，
+                //   无法安全区分"显示用"与"初始化用"⇒ 默认关闭（`refit_tonnage_display=0`），
+                //   仅在明确知道后果时用 `refit_tonnage_display=1` 打开。
+                if (HotfixParams.RefitTonnageDisplay)
                 {
-                    var tm = AccessTools.Method(typeof(Ship), nm);
-                    if (tm == null) { HotfixLog.Warn("[SMS.1.E] Ship::" + nm + " not found"); continue; }
-                    harmony.Patch(tm, postfix: new HarmonyMethod(
-                        AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Tonnage))));
+                    foreach (var nm in new string[] { "TonnageMin", "TonnageMax" })
+                    {
+                        var tm = AccessTools.Method(typeof(Ship), nm);
+                        if (tm == null) { HotfixLog.Warn("[SMS.1.E] Ship::" + nm + " not found"); continue; }
+                        harmony.Patch(tm, postfix: new HarmonyMethod(
+                            AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Tonnage))));
+                    }
+                    HotfixLog.Warn("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override ENABLED"
+                                   + " (refit_tonnage_display=1) -- 会在读档时改写改造船的吨位边界");
+                }
+                else
+                {
+                    HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override disabled"
+                                   + " (refit_tonnage_display=0, 防止读档污染 tonnage)");
                 }
 
                 var maint = AccessTools.Method(typeof(Ship), "MaintenanceCost");
@@ -89,6 +109,7 @@ namespace TAFHotfixBatch1.Modules
         internal static void Postfix_Cost(Ship __instance, ref float __result)
         {
             if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+            if (!HotfixParams.RefitTonnageDisplay) return;   // 默认不接管 TonnageMin/Max
             if (_inCost) return;
 
             try
