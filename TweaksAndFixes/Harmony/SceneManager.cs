@@ -1,10 +1,12 @@
-﻿using HarmonyLib;
+﻿using System;
+using HarmonyLib;
 using Il2Cpp;
 using Il2CppNavalAction.Common;
 using MelonLoader;
 using TweaksAndFixes.Modified;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using TAFHotfixBatch1;
 
 #if true
 
@@ -512,6 +514,50 @@ namespace TweaksAndFixes
 
             CPUWaterSimulator.instance.UpdateGlobalWaveScale(dcaw.oceanFFT.globalWaveScale);
         }
+    }
+
+internal static class Patch_SceneManagerPreview
+{
+    // ★ [SMS.1.SCENE] 3.22 B6 的"预览模式"开关（移植自 Beta6 Patch_SceneManager）。
+    //
+    // 作用：在生成舰船/部件预览图、以及刷新分段计划 UI 时，暂时把场景切到"预览模式"
+    //   —— 隐藏构造器场景的 Sun、显示战斗场景的 Scene Lighting（若静态海面启用则同时缩放海面）。
+    //
+    // 说明：这些字段由 ConfigureScene 建立；**在我们还没移植 ConfigureScene / 静态海面之前，
+    //   inited 恒为 false ⇒ 本方法是无副作用的空操作**，可以安全先接上钩子。
+    //   等到移植静态海面时，只需在 ConfigureScene 里设置 inited / LevelConstructor / LevelBattle。
+    internal static bool PreviewInited = false;
+    internal static bool StaticOceanEnabled = false;
+    internal static GameObject StaticOcean;
+    internal static GameObject LevelConstructor;
+    internal static GameObject LevelBattle;
+
+    /// <summary>切换"预览模式"（见上）。未初始化时为空操作。</summary>
+    public static void ConfigureForPreview(bool active)
+    {
+        if (!PreviewInited) return;
+
+        try
+        {
+            if (StaticOceanEnabled && StaticOcean != null)
+            {
+                StaticOcean.transform.localScale = active
+                    ? new Vector3(100000f, 0.05f, 100000f)
+                    : new Vector3(0f, 0f, 0f);
+            }
+
+            var sun = LevelConstructor != null ? Util.GetChild(LevelConstructor, "Sun", false) : null;
+            if (sun != null) sun.active = !active;
+
+            var lighting = LevelBattle != null ? Util.GetChild(LevelBattle, "Scene Lighting", false) : null;
+            if (lighting != null) lighting.active = active;
+        }
+        catch (Exception e)
+        {
+            HotfixLog.Warn("[SMS.1.SCENE] ConfigureForPreview: " + e.Message);
+        }
+    }
+
     }
 }
 

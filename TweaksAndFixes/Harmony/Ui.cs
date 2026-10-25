@@ -2232,6 +2232,38 @@ namespace TweaksAndFixes
 
 
 
+
+        // ★ [SMS.1.SCENE] 预览/分段 UI 的"预览模式"成对钩子（移植自 Beta6 Patch_Ui）。
+        //   依赖 Patch_SceneManager.ConfigureForPreview —— 未移植静态海面前它是空操作。
+
+        [HarmonyPrefix]
+        [HarmonyPatch(nameof(Ui.CreateAndRefreshSectionsPlanUI))]
+        internal static void Prefix_CreateAndRefreshSectionsPlanUI(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(Ui.CreateAndRefreshSectionsPlanUI))]
+        internal static void Postfix_CreateAndRefreshSectionsPlanUI(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(true);
+        }
+
+        [HarmonyPrefix]
+        [HarmonyPatch(nameof(Ui.RefreshDamagePlan))]
+        internal static void Prefix_RefreshDamagePlan(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(Ui.RefreshDamagePlan))]
+        internal static void Postfix_RefreshDamagePlan(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(true);
+        }
+
         // ########## PART PREVIEW CACHING ########## //
 
         public static Dictionary<string, Texture2D> PartPreviewCache = new Dictionary<string, Texture2D>();
