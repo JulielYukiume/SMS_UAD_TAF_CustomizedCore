@@ -45,8 +45,56 @@ namespace TweaksAndFixes
 
             _logged++;
 
-            try { Probe(state); }
+            try
+            {
+                Probe(state);
+                BindScene(state);
+            }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.SCENE] probe: " + e.Message); }
+        }
+
+        /// <summary>
+        /// [SMS.1.SCENE] 把探针找到的对象登记到 `Patch_SceneManagerPreview`，
+        /// 让 `ConfigureForPreview` 真正生效（预览时隐藏构造器 Sun、显示战斗 Scene Lighting）。
+        ///
+        /// 实测（2026-10-26，port37 探针）：
+        ///   · `LevelConstructor` 的子对象含 `Sun`   ✅
+        ///   · `LevelBattle`      的子对象含 `Scene Lighting` ✅
+        ///   · `GameObject.Find("Sun")` 为 null（Sun 是失活对象，Find 只找激活对象）⇒ 必须用 Util.GetChild 从根上取
+        ///   · 海面对象是 `opwOcean4OPW_00`（没有叫 OceanFFT 的对象）
+        /// </summary>
+        private static void BindScene(string state)
+        {
+            try
+            {
+                var lc = GameObject.Find("LevelConstructor");
+                var lb = GameObject.Find("LevelBattle");
+
+                if (lc != null) Patch_SceneManagerPreview.LevelConstructor = lc;
+                if (lb != null) Patch_SceneManagerPreview.LevelBattle = lb;
+
+                // DayCycleAndWeather：给 OceanGraphicsData 用（场景里唯一的天气组件）
+                if (Patch_SceneManagerPreview.DayCycleAndWeatherO == null)
+                {
+                    try
+                    {
+                        var dcw = UnityEngine.Object.FindObjectOfType<DayCycleAndWeather>();
+                        if (dcw != null) Patch_SceneManagerPreview.DayCycleAndWeatherO = dcw.gameObject;
+                    }
+                    catch { }
+                }
+
+                bool ready = Patch_SceneManagerPreview.LevelConstructor != null
+                             && Patch_SceneManagerPreview.LevelBattle != null;
+                Patch_SceneManagerPreview.PreviewInited = ready;
+
+                HotfixLog.Info("[SMS.1.SCENE] bind state=" + state
+                               + "  LevelConstructor=" + (Patch_SceneManagerPreview.LevelConstructor != null)
+                               + "  LevelBattle=" + (Patch_SceneManagerPreview.LevelBattle != null)
+                               + "  DayCycleAndWeather=" + (Patch_SceneManagerPreview.DayCycleAndWeatherO != null)
+                               + "  previewInited=" + Patch_SceneManagerPreview.PreviewInited);
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SCENE] bind: " + e.Message); }
         }
 
         private static void Probe(string state)
