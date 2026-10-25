@@ -223,9 +223,20 @@ namespace TweaksAndFixes
             return true;
         }
 
-        public static bool LoadPredefs(string? path, out CampaignDesigns.Store? store, out int dCount, bool checkMissing)
+        /// <summary>
+        /// 载入预置设计文件（stock 的 packedShips 或指定路径）。
+        ///
+        /// [SMS.1.PREDEF] 2026-10-25 按 Beta6（3.22）反编译版本重写：
+        ///   · 去掉了原来 `taf_predef_debug_enable` 的一整段调试扫描（728 → 289 IL）；
+        ///   · 校验逻辑保持：shipsPerYear / shipsPerPlayer / shipsPerType / 每个 type 的列表非空；
+        ///     `checkMissing` 时还要检查"该年份是否缺当前主要国家"；
+        ///   · 出错时统一弹 `$TAF_Ui_Predef_Error_MalformedPredefFile` 并置
+        ///     `PredefinedDesignFileProblem = true`，返回 false。
+        /// </summary>
+        public static bool LoadPredefs(string path, out CampaignDesigns.Store store, out int dCount, bool checkMissing)
         {
             dCount = 0;
+
             if (path == null)
             {
                 path = _StockAssetName; // for logging
@@ -246,202 +257,83 @@ namespace TweaksAndFixes
                 return false;
             }
 
-            if (Config.Param("taf_predef_debug_enable", 0) == 1) // Check for predef problems
-            {
-                int min = Config.Param("taf_predef_debug_min_ship_count", 5);
-                int max = Config.Param("taf_predef_debug_max_ship_count", 15);
-                bool asCSV = Config.Param("taf_predef_debug_format", 0) == 1;
-                bool printAll = Config.Param("taf_predef_debug_print_all", 0) == 1;
-                List<string> types = new List<string> { "tb", "dd", "cl", "ca", "bc", "bb" }; // TODO: Pull from shiptypes.csv instead!
-
-                string ShipsPerYearProblems = "";
-
-                // foreach (var spy in store.shipsPerYear)
-                // {
-                //     Melon<TweaksAndFixes>.Logger.Error($"{spy.Key}");
-                //     foreach (var spp2 in spy.Value.shipsPerPlayer)
-                //     {
-                //         Melon<TweaksAndFixes>.Logger.Error($"  {spp2.Key}");
-                //         foreach (var spp3 in spp2.value.shipsPerType)
-                //         {
-                //             Melon<TweaksAndFixes>.Logger.Error($"    {spp3.Key}: {spp3.Value.Count}");
-                //         }
-                //     }
-                // }
-                // 
-                // 
-                // if (false)
-                foreach (var spy in store.shipsPerYear)
-                {
-                    bool yearProblem = false;
-                    foreach (var p in G.GameData.playersMajor.Values)
-                    {
-                        bool missing = true;
-                        foreach (var spp2 in spy.Value.shipsPerPlayer)
-                        {
-                            if (spp2.Key == p.name && spp2.Value.shipsPerType.Count > 0)
-                            {
-                                missing = false;
-                                break;
-                            }
-                        }
-                        if (missing)
-                        {
-                            if (!yearProblem)
-                            {
-                                yearProblem = true;
-                                ShipsPerYearProblems += asCSV ? $"\n,,,,,,,\n{spy.Key},tb,dd,cl,ca,bc,bb" : $"\n - {spy.Key}";
-                            }
-                            ShipsPerYearProblems += asCSV ? $"\n{p.name},0,0,0,0,0,0" : $"\n   = {p.name}: No Designs"; // \n  + tb: 0\n  + dd: 0\n  + cl: 0\n  + ca: 0\n  + bc: 0\n  + bb: 0
-                            continue;
-                        }
-                    }
-
-
-                    foreach (var spp2 in spy.Value.shipsPerPlayer)
-                    {
-                        string msg = asCSV ? $"\n{spp2.key}" : $"\n   = {spp2.key}:";
-                        bool countryProblem = false;
-                        string typeCount = "";
-                        int typeIndex = 0;
-                        var sppp1 = spp2.value.shipsPerType;
-
-                        Dictionary<string, Il2CppSystem.Collections.Generic.List<Ship.Store>> parsedList = new Dictionary<string, Il2CppSystem.Collections.Generic.List<Ship.Store>>();
-                        foreach (var spp3 in spp2.value.shipsPerType)
-                        {
-                            parsedList[spp3.Key] = spp3.Value;
-                        }
-
-                        for (int i = 0; i < types.Count; i++)
-                        {
-                            if (!parsedList.ContainsKey(types[i]))
-                            {
-                                typeCount += ",0";
-                                if (!asCSV) msg += $"\n     + {types[i]}: 0";
-                                countryProblem = true;
-                                if (!yearProblem)
-                                {
-                                    yearProblem = true;
-                                    ShipsPerYearProblems += asCSV ? $"\n,,,,,,,\n{spy.Key},tb,dd,cl,ca,bc,bb" : $"\n - {spy.Key}";
-                                }
-                                continue;
-                            }
-
-                            var shipList = parsedList[types[i]];
-
-                            typeIndex += 2;
-                            if (shipList.Count < min || shipList.Count > max || printAll)
-                            {
-                                msg += asCSV ? "" : $"\n     + {types[i]}: {shipList.Count}";
-                                typeCount += $",{shipList.Count}";
-
-                                countryProblem = true;
-                                if (!yearProblem)
-                                {
-                                    yearProblem = true;
-                                    ShipsPerYearProblems += asCSV ? $"\n,,,,,,,\n{spy.Key},tb,dd,cl,ca,bc,bb" : $"\n - {spy.Key}";
-                                }
-                            }
-                            else
-                            {
-                                typeCount += ",";
-                            }
-                        }
-                        if (countryProblem) 
-                        {
-                            ShipsPerYearProblems += msg + (asCSV ? typeCount : "");
-                        }
-                    }
-                }
-
-                if (ShipsPerYearProblems.Length > 0)
-                {
-                    Melon<TweaksAndFixes>.Logger.Error($"Found problems with pregen design file. See Wiki for more info on pregen files:{ShipsPerYearProblems}");
-
-                    G.ui.ShowMessage(LocalizeManager.Localize("$TAF_Ui_Predef_Error_MalformedPredefFile"),
-                        new System.Action(() =>
-                        {
-                            GameManager.Quit();
-                        })
-                    );
-
-                    PredefinedDesignFileProblem = true;
-
-                    return false;
-                }
-            }
-
             bool failed = false;
 
-            foreach (var spy in store.shipsPerYear)
+            var eYear = store.shipsPerYear.GetEnumerator();
+            while (eYear.MoveNext() && !failed)
             {
-                if (spy.Value.shipsPerPlayer == null)
+                var yearKv = eYear.Current;
+                int year = yearKv.Key;
+                var yearStore = yearKv.Value;
+
+                if (yearStore.shipsPerPlayer == null)
                 {
-                    Melon<TweaksAndFixes>.Logger.Error($"Failed to load shipsPerPlayer for {spy.Key} from {path}");
+                    Melon<TweaksAndFixes>.Logger.Error($"Failed to load shipsPerPlayer for {year} from {path}");
                     failed = true;
                     break;
                 }
 
-                foreach (var p in G.GameData.playersMajor.Values)
+                // checkMissing：该年份是否包含所有主要国家
+                if (checkMissing)
                 {
-                    if (checkMissing)
+                    var ePlayerAll = G.GameData.playersMajor.Values.GetEnumerator();
+                    while (ePlayerAll.MoveNext())
                     {
-                        bool missing = true;
-                        foreach (var spp2 in spy.Value.shipsPerPlayer)
+                        var pd = ePlayerAll.Current;
+                        if (pd == null) continue;
+
+                        string nationName = pd.name;
+                        bool found = false;
+
+                        var ePP = yearStore.shipsPerPlayer.GetEnumerator();
+                        while (ePP.MoveNext())
                         {
-                            if (spp2.Key == p.name)
-                            {
-                                missing = false;
-                                break;
-                            }
+                            if (ePP.Current.Key == nationName) { found = true; break; }
                         }
-                        if (missing)
+
+                        if (!found)
                         {
-                            Melon<TweaksAndFixes>.Logger.Error($"Year {spy.Key} lacks nation {p.name} from {path}");
+                            Melon<TweaksAndFixes>.Logger.Error($"Year {year} lacks nation {nationName} from {path}");
                             failed = true;
                             break;
                         }
                     }
+
+                    if (failed) break;
                 }
 
-                if (failed)
+                var ePlayer = yearStore.shipsPerPlayer.GetEnumerator();
+                while (ePlayer.MoveNext() && !failed)
                 {
-                    break;
-                }
+                    var playerKv = ePlayer.Current;
+                    string playerName = playerKv.Key;
+                    var playerStore = playerKv.Value;
 
-                foreach (var spp in spy.Value.shipsPerPlayer)
-                {
-                    if (spp.Value.shipsPerType == null)
+                    if (playerStore.shipsPerType == null)
                     {
-                        Melon<TweaksAndFixes>.Logger.Error($"Failed to load shipsPerType for {spy.Key} and player {spp.Key} from {path}");
+                        Melon<TweaksAndFixes>.Logger.Error($"Failed to load shipsPerType for {year} and player {playerName} from {path}");
                         failed = true;
                         break;
                     }
 
-                    foreach (var spt in spp.Value.shipsPerType)
+                    var eType = playerStore.shipsPerType.GetEnumerator();
+                    while (eType.MoveNext() && !failed)
                     {
-                        if (spt.Value == null)
+                        var typeKv = eType.Current;
+                        string typeName = typeKv.Key;
+                        var list = typeKv.Value;
+
+                        if (list == null)
                         {
-                            Melon<TweaksAndFixes>.Logger.Error($"Failed to load ship list for type {spt.Key} for {spy.Key} and player {spp.Key} from {path}");
+                            Melon<TweaksAndFixes>.Logger.Error($"Failed to load ship list for type {typeName} for {year} and player {playerName} from {path}");
                             failed = true;
                             break;
                         }
 
-                        dCount += spt.Value.Count;
+                        dCount += list.Count;
                     }
-
-                    if (failed)
-                    {
-                        break;
-                    }
-                }
-
-                if (failed)
-                {
-                    break;
                 }
             }
-
 
             if (failed)
             {
@@ -453,11 +345,10 @@ namespace TweaksAndFixes
                 );
 
                 PredefinedDesignFileProblem = true;
-
                 return false;
             }
 
-            return !failed;
+            return true;
         }
 
         public Ship.Store GetRandomShip(Player player, ShipType type, int desiredYear)
