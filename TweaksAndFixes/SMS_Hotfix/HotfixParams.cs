@@ -55,6 +55,8 @@ namespace TAFHotfixBatch1
         internal static bool SceneProbe = true;
         /// <summary>[SMS.1.MAT] 舯段渲染/材质只读探针。</summary>
         internal static bool MatProbe = true;
+        /// <summary>[SMS.1.DECOR] 是否用替代实现拦截空渲染器的 Decor.Awake（默认 0=不介入）。</summary>
+        internal static bool DecorAwakeGuard = false;
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>
@@ -213,6 +215,7 @@ namespace TAFHotfixBatch1
             ReparationMothball = GetBool("reparation_mothball", ReparationMothball);
             SceneProbe = GetBool("scene_probe", SceneProbe);
             MatProbe = GetBool("mat_probe", MatProbe);
+            DecorAwakeGuard = GetBool("decor_awake_guard", DecorAwakeGuard);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);

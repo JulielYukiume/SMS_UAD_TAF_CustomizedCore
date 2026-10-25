@@ -235,6 +235,12 @@ namespace TweaksAndFixes
         [HarmonyPatch("Awake")]
         internal static bool Prefix_Awake(Decor __instance)
         {
+            // ★ 默认**不介入**（decor_awake_guard=0）：装饰物 Awake 时常常还没有子渲染器，
+            //   一旦我们跳过原版，装饰物就不会注册/生成（port35~40 实测：甲板装饰物消失）。
+            //   只有显式打开 decor_awake_guard=1 时才走"空集合替代"，用于屏蔽
+            //   "Sequence contains no elements" 日志（代价是那类装饰件不初始化）。
+            if (!HotfixParams.DecorAwakeGuard) return true;
+
             try
             {
                 if (__instance == null) return false;
