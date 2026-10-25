@@ -214,21 +214,22 @@ namespace TweaksAndFixes
             }
         }
 
-        private static int _awakeEmpty;
-
         /// <summary>
-        /// [SMS.1.DECOR] 前置拦截：**没有子渲染器**的 `Decor` 直接跳过原版 `Awake`。
+        /// [SMS.1.DECOR] `Decor.Awake` 的**完整替代实现** —— 移植 Beta6 的 `Patch_Decor.Prefix_Awake`。
         ///
-        /// 为什么必须用 Prefix 而不是 Finalizer（2026-10-26 实测）：
-        ///   `Decor.Awake` 是 IL2CPP 原生方法，它内部的 `Enumerable.Aggregate` 抛出的
-        ///   `InvalidOperationException` 是在**原生侧**产生的，由 Il2CppInterop 的
-        ///   `RaiseExceptionIfNecessary` 在托管 detour **之外**转换并抛出 ⇒
-        ///   Harmony 的 Finalizer **捕获不到**（port31 加了 Finalizer 但日志仍在，即此原因）。
-        ///   唯一可靠做法：在调用原方法**之前**判断，条件成立就不执行原方法。
+        /// 为什么必须替代（而不是"补一层"）：
+        ///   · 原版 `Decor.Awake` 内部对子渲染器做 `Enumerable.Aggregate`；
+        ///     当某个 Decor 没有任何子渲染器时抛 `InvalidOperationException: Sequence contains no elements`，
+        ///     且该异常由 IL2CPP 原生侧产生、经 Il2CppInterop 在托管 detour 之外转换抛出
+        ///     ⇒ **Harmony Finalizer 拦不到**（2026-10-26 port31 实测）。
+        ///   · Beta5（以及原版 1.7）会在主菜单/快速装载时刷这个错；**Beta6 修复了它**，
+        ///     做法正是用 Prefix 整体替代 Awake（下面这份实现）。
         ///
-        /// 判据：`GetComponentsInChildren&lt;Renderer&gt;()` 为空。
-        /// 这类 Decor 没有可见网格，原版 `Awake` 的"重叠检查注册"本来也无对象可注册，
-        /// 跳过它不会损失功能，只是避免抛异常。
+        /// 与原版的差异（关键）：
+        ///   · 不再 `Aggregate`，改为手动累加 bounds（空集合时 bounds 为 default，不会抛）；
+        ///   · 手动建立 `forceIgnoreX` / `forceOverlapX`（由 `Util.HumanListToList` 转换）；
+        ///   · 手动 `Util.GetChildren` + `Util.SetLayer("Decor")`。
+        ///   ⇒ 原版"重叠检查注册"这一步**被完整保留**（这是 docs/38 担心的点，此处已覆盖）。
         /// </summary>
         [HarmonyPrefix]
         [HarmonyPatch("Awake")]
@@ -236,24 +237,59 @@ namespace TweaksAndFixes
         {
             try
             {
-                if (__instance == null) return true;
+                if (__instance == null) return false;
+                if (!Application.isPlaying) return false;
 
-                foreach (var r in __instance.GetComponentsInChildren<Renderer>())
+                Bounds bounds = default;
+                bool any = false;
+
+                foreach (var renderer in __instance.GetComponentsInChildren<Renderer>())
                 {
-                    if (r != null) return true;   // 有渲染器 ⇒ 走原版
+                    if (renderer == null) continue;
+                    if (!any) bounds = renderer.bounds;
+                    else bounds.Encapsulate(renderer.bounds);
+                    any = true;
                 }
 
-                _awakeEmpty++;
-                if (_awakeEmpty == 1 || _awakeEmpty % 50 == 0)
-                    HotfixLog.Info("[SMS.1.DECOR] Decor.Awake 跳过空渲染器实例（累计 " + _awakeEmpty + " 次）");
+                // 空集合时 bounds 保持 default —— 这就是不抛异常的关键（原版在此 Aggregate）
+                __instance.bounds = bounds;
 
-                return false; // 跳过原方法，避免 Aggregate 空集合异常
+                __instance.forceIgnoreX = new Il2CppSystem.Collections.Generic.HashSet<string>();
+                var eIgnore = Util.HumanListToList(__instance.forceIgnore).GetEnumerator();
+                while (eIgnore.MoveNext())
+                {
+                    string cur = eIgnore.Current;
+                    if (cur != null) __instance.forceIgnoreX.Add(cur);
+                }
+
+                __instance.forceOverlapX = new Il2CppSystem.Collections.Generic.HashSet<string>();
+                var eOverlap = Util.HumanListToList(__instance.forceOverlap).GetEnumerator();
+                while (eOverlap.MoveNext())
+                {
+                    string cur = eOverlap.Current;
+                    if (cur != null) __instance.forceOverlapX.Add(cur);
+                }
+
+                __instance.children = Util.GetChildren(__instance.gameObject);
+
+                int decorLayer = LayerMask.NameToLayer("Decor");
+                if (decorLayer >= 0)
+                    Util.SetLayer(__instance.gameObject, decorLayer);
+
+                _awakePrefix++;
+                return false;   // 已完全替代原方法
             }
-            catch
+            catch (Exception e)
             {
+                // 任何意外都退回原版（宁可抛原版的错，也不能让装饰件状态半途而废）
+                if (_awakePrefixErr++ < 5)
+                    HotfixLog.Warn("[SMS.1.DECOR] Awake prefix fallback: " + e.Message);
                 return true;
             }
         }
+
+        private static int _awakePrefix;
+        private static int _awakePrefixErr;
 
         private static int _awakeFail;
 
