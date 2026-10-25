@@ -69,3 +69,39 @@
 - 已排除：`hullData`/`sectioning`、`OnRenderersWasChanged` 单点、`RefreshHull` 完整重写；
 - 结论：不在上述代码路径，仍需专项排查（记录见 `docs/57` §8）；
 - **未解决**，但不阻塞其它功能。
+
+---
+
+## 6. 移植进度与"下一步为什么难"（2026-10-25 深夜）
+
+### 6.1 当前保真度（port26 vs Beta6）
+
+| 指标 | 数值 |
+| --- | --- |
+| 我方方法数 | 1,821+ |
+| 哈希完全一致 | **1,214（66.3%）** |
+| 同 IL 不同哈希 | 101（5.5%） |
+| IL 条数不同 | 72（3.9%） |
+| 仅 Beta6 有（未移植） | **230** |
+
+### 6.2 已移植清单
+
+装饰碰撞 v3、`RefreshHull` 完整重写、`hullData`、设置菜单三项、动态装甲堡、
+`RefitShipsStart` 状态重置（Postfix 已禁）、`Constructor` 模块、`Temp_ToConstructor`。
+
+### 6.3 剩下两个大项的**实际障碍**（不是"照抄"能解决的）
+
+| 项 | 规模 | 障碍 |
+| --- | --- | --- |
+| `MakeVisualShip` | 864 → 133 IL | main 版共 317 行，我方 `MainMenuM.cs` 有 712 行（**多出 411 行** SMS 自有逻辑）。整文件替换会丢我们的代码；只能"整段摘取 + 保留我方逻辑"，需要一次专门的对照重构 |
+| `LoadPredefs` | 728 → 289 IL | `PredefinedDesignsData.cs` 我方 1,395 行，main 分支该文件路径/结构不同（`git show` 只取到 1 行），需要先定位 main 的真实文件再对照 |
+
+⇒ 结论：这两项**不适合在上下文/时间不足时硬做**，应单独立项、单独出 dist 验证。
+
+### 6.4 建议顺序（下次开工）
+
+1. `LoadPredefs`：先定位 main 的真实文件（可能在 `Data/` 或 `PredefinedDesigns/`），做差异表，再决定摘取范围；
+2. `MakeVisualShip`：只摘 `VisualShip` + `locations` + `MakeVisualShip` + `ClearScene` 四段，其余保留我方；
+3. `PrintShipDataExhaustive`（3,067 IL，纯只读面板）—— 体量大但风险低，可放这里；
+4. `CampaignEventSystem`（~1,200 IL）—— 需要验收，最后做；
+5. `OceanGraphicsData` + 静态海面 —— 你说不急。
