@@ -112,3 +112,45 @@ static void Postfix(Ui __i) => Patch_SceneManager.ConfigureForPreview(active: tr
 | 2 | 部件预览缓存 | ⏭️ **已有**，仅缺 ConfigureForPreview 钩子 → 并入第 5 批 |
 | 4 | **ShipGen + PartLimits** | ▶ 下一个做 |
 | 5 | Patch_SceneManager + OceanGraphicsData + 预览钩子 + 分段计划 UI | 待第 4 批后 |
+
+---
+
+## 8. 第 4 批（ShipGen / PartLimits）规模实测 —— 需要拆成多步
+
+| 文件 | 反编译行数 | 说明 |
+| --- | --- | --- |
+| `Modules/ShipGen.cs` | **1,383 行** | `PartLimits` 类（54-950）+ `ShipGen` 静态方法（951-1383） |
+| `Patch_ShipGenRandom.cs` | 762 行 | 我们**已有**（3.21.1 自带的 AI 随机造船补丁） |
+| `Patch_BatchShipGenerator.cs` | 743 行 | 我们**已有** |
+
+### 内部结构（`ShipGen.cs`）
+
+| 成员 | 行数 | 作用 |
+| --- | --- | --- |
+| `PartLimits` 构造/复制 | 54-83 | 从 `PartData`/`PartLimits` 建立限制 |
+| `BuildRestrictionsFor(Part)` | 84-109 | 由部件反推限制 |
+| `Merge(...)` ×2 | 110-250 | 合并两级限制 |
+| **`Parse(PartData)`** | 251-264 | 入口 |
+| **`ParseShipType(ShipType)`** | 265-504 | **240 行**，解析 shipType 侧限制 |
+| **`ParsePartData(PartData)`** | 505-833 | **330 行**，解析 parts 侧（含 `shipgen_limit(...)` 语法） |
+| `Print()` | 834-950 | 调试输出 |
+| `CanAddGun` / `CanAddTorpedo` / `CanAddFunnel` / `CanAdd` | 955-1333 | 实际约束判定（挂 `Patch_ShipGenRandom` 等） |
+| `ParsePartLimitData()` | 1366-1383 | 启动时灌表 |
+
+### 结论
+
+- **不可能一次 port 完成**：仅 `Parse` 两个方法就 570 行，且含大量反编译残留（`((Bounds)(ref x))`、`op_Implicit` 等）；
+- 建议拆成：
+  1. **P4-a**：`PartLimits` 数据结构 + `Merge` + `Parse`（解析侧，纯数据）
+  2. **P4-b**：`CanAdd*` / `IsXAvailible` 判定 + 挂 `Patch_ShipGenRandom`
+  3. **P4-c**：`ParsePartLimitData` 启动灌表 + 日志验证（18 行 SMS `shipgen_limit` 是否被读到）
+- 每步都要编译 + 单测式日志，不能一口气写完再编译（反编译残留太多）。
+
+### 与第 5 批的取舍
+
+| 批次 | 反编译规模 | 玩家可见收益 | 与色差相关性 |
+| --- | --- | --- | --- |
+| 第 4 批（ShipGen） | **~2,100 行**（含 3 个文件） | 仅影响 AI 生成舰（且约束有限） | 无 |
+| 第 5 批（SceneManager/Ocean/预览钩子） | ~700 行 | 预览图正确性 + 静态海面 | **有（预览/构造器场景的光照与相机）** |
+
+⇒ 若时间有限，**第 5 批优先级高于第 4 批**。
