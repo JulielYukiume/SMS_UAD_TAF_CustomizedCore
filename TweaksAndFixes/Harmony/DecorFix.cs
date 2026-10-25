@@ -36,10 +36,14 @@ namespace TweaksAndFixes
         //   （Beta6 的写法是"重写整个 RefreshDecor"，里面自带生成逻辑；我们只移植了"遮挡隐藏"那一半）。
         //
         // 现在：先让原版执行（生成 + 注册），再在我们的 Postfix 里做"被炮塔/炮管遮挡则隐藏"。
+        private static int _rdCalls;
+
         [HarmonyPostfix]
         [HarmonyPatch(nameof(Ship.RefreshDecor))]
         internal static void Postfix_RefreshDecor(Ship __instance)
         {
+            if (_rdCalls++ < 5)
+                HotfixLog.Info("[SMS.1.PROP] Postfix_RefreshDecor called (n=" + _rdCalls + ")");
             if (__instance == null) return;
 
             try
