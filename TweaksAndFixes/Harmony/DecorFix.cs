@@ -27,11 +27,18 @@ namespace TweaksAndFixes
     [HarmonyPatch(typeof(Ship))]
     internal class Patch_Ship_RefreshDecor
     {
-        [HarmonyPrefix]
+        // ★★★ [SMS.1.DECOR] 2026-10-26：由 **Prefix(return false 跳过原版)** 改为 **Postfix**。
+        //
+        // 原因：原版 `Ship.RefreshDecor` 负责**生成甲板装饰物**（poisson 布点、deckPropCoverage 等）。
+        //   我们之前用 Prefix 直接 `return false`，等于把原版整段跳过 ⇒ **甲板装饰物从未生成**
+        //   （Beta6 的写法是"重写整个 RefreshDecor"，里面自带生成逻辑；我们只移植了"遮挡隐藏"那一半）。
+        //
+        // 现在：先让原版执行（生成 + 注册），再在我们的 Postfix 里做"被炮塔/炮管遮挡则隐藏"。
+        [HarmonyPostfix]
         [HarmonyPatch(nameof(Ship.RefreshDecor))]
-        internal static bool Prefix_RefreshDecor(Ship __instance)
+        internal static void Postfix_RefreshDecor(Ship __instance)
         {
-            if (__instance == null) return true;
+            if (__instance == null) return;
 
             try
             {
@@ -94,8 +101,6 @@ namespace TweaksAndFixes
             {
                 HotfixLog.Warn("[SMS.1.DECOR] RefreshDecor: " + e.Message);
             }
-
-            return false;
         }
 
         /// <summary>① 主体几何体 或 ② deck/hang 碰撞体 或 ③ 炮管，任一相交即可。</summary>
