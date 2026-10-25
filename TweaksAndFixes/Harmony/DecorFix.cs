@@ -213,5 +213,47 @@ namespace TweaksAndFixes
                 HotfixLog.Warn("[SMS.1.DECOR] Awake postfix: " + e.Message);
             }
         }
+
+        private static int _awakeFail;
+
+        /// <summary>
+        /// [SMS.1.DECOR] 吸收原版 `Decor.Awake` 内部的 `InvalidOperationException: Sequence contains no elements`。
+        ///
+        /// 现象（2026-10-26 日志，port30）：主菜单封面船/游戏内加载时会刷出成对错误：
+        ///     [ERROR] [Il2CppInterop] During invoking native->managed trampoline
+        ///     System.InvalidOperationException: Sequence contains no elements
+        ///     at System.Linq.Enumerable.Aggregate ... at Decor.Awake ()
+        ///
+        /// 原因：`Decor.Awake` 会对"子渲染器集合"做 `Aggregate`，当某个 Decor 实例**没有任何子渲染器**时
+        /// （例如由 3.22 的 `LoadUnloadModel` 快速装载、模型尚未挂全，或程序化生成的装饰件），
+        /// 原版没有空集合保护 ⇒ 直接抛异常。
+        ///
+        /// 处理：用 Finalizer 吞掉这个**特定异常**（其它异常原样抛回），并只在首次 + 每 50 次记一条日志。
+        /// 不改变原方法逻辑，也不影响已有 Postfix。
+        /// </summary>
+        [HarmonyFinalizer]
+        [HarmonyPatch("Awake")]
+        internal static Exception Finalizer_Awake(Exception __exception)
+        {
+            if (__exception == null) return null;
+
+            // 只吞"空集合"这一种；其它异常保持原行为
+            bool isEmptyAggregate = false;
+            try
+            {
+                isEmptyAggregate = __exception is InvalidOperationException
+                                   && __exception.Message != null
+                                   && __exception.Message.Contains("Sequence contains no elements");
+            }
+            catch { }
+
+            if (!isEmptyAggregate) return __exception;
+
+            _awakeFail++;
+            if (_awakeFail == 1 || _awakeFail % 50 == 0)
+                HotfixLog.Info("[SMS.1.DECOR] Decor.Awake 空渲染器集合已忽略（累计 " + _awakeFail + " 次）");
+
+            return null; // 吞掉
+        }
     }
 }
