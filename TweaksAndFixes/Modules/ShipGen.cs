@@ -3,6 +3,7 @@ using System.Text;
 using Il2Cpp;
 using MelonLoader;
 using TAFHotfixBatch1;
+using UnityEngine;
 
 namespace TweaksAndFixes.Modules
 {
@@ -321,6 +322,469 @@ namespace TweaksAndFixes.Modules
         /// <summary>按 PartData.name 索引的限制表（ParsePartLimitData 时填充）。</summary>
         public static System.Collections.Generic.Dictionary<string, PartLimits> PartLimitData
             = new System.Collections.Generic.Dictionary<string, PartLimits>();
+
+
+        // ======================================================================
+        //  判定层（P-c）：由限制表判断"这个部件能不能再放"
+        //  语义与 Beta6 反编译一致；所有异常一律返回 true（宽松），避免误拦。
+        // ======================================================================
+
+        /// <summary>检查 part 的父级链里是否出现 target，或是否有父级满足 pred。</summary>
+        internal static bool HasParent(Part part, Part target, Func<Part, bool> pred)
+        {
+            try
+            {
+                int guard = 100;
+                var cur = part;
+                while (cur != null && guard-- > 0)
+                {
+                    var m = cur.mount;
+                    if (m == null) break;
+                    var pp = m.parentPart;
+                    if (pp == null) break;
+                    if (ReferenceEquals(pp, target)) return true;
+                    if (pred != null && pp.data != null && pred(pp)) return true;
+                    cur = pp;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>能否再加一门炮（主炮/副炮分别按各自限制）。</summary>
+        public static bool CanAddGun(Part part, PartData data, Ship ship, ref string denyReason)
+        {
+            try
+            {
+                if (data == null) return true;
+                if (!PartLimitData.ContainsKey(data.name))
+                {
+                    HotfixLog.Warn("[SMS.1.SHIPGEN] no limit data for " + data.name);
+                    return true;
+                }
+                if (part == null || ship == null) return true;
+
+                var mount = part.mount;
+                if (mount == null || mount.parentPart == null) return true;
+                var parentData = mount.parentPart.data;
+                if (parentData != null && parentData.isHull) return true;
+
+                var parentPart = mount.parentPart;
+                PartLimits lim;
+                var pkey = parentPart.data != null ? parentPart.data.name : null;
+                if (pkey == null || !PartLimitData.ContainsKey(pkey)) return true;
+                lim = PartLimitData[pkey].BuildRestrictionsFor(part);
+                if (!lim.hasLimits) return true;
+
+                float cal = data.GetCaliberInch(ship);
+
+                if (ship.IsMainCal(data))
+                {
+                    if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
+                        || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
+                    {
+                        denyReason = "shipgen_limit: main gun cal range";
+                        return false;
+                    }
+
+                    if (lim.max_main_gun_count > 0f && ship.mainGuns != null)
+                    {
+                        int n = 0;
+                        var e = ship.mainGuns.GetEnumerator();
+                        while (e.MoveNext())
+                        {
+                            var cur = e.Current;
+                            if (cur == null) continue;
+                            if (cur.mount == null || cur.mount.parentPart == null) continue;
+                            if (cur.data != null && cur.data.isBarbette) continue;
+                            if (HasParent(cur, parentPart, c => c.data != null && c.data.isBarbette)) continue;
+                            n++;
+                        }
+                        if (n > lim.max_main_gun_count)
+                        {
+                            denyReason = "shipgen_limit: main gun count range";
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    if ((lim.max_sec_gun_cal > 0f && cal > lim.max_sec_gun_cal)
+                        || (lim.min_sec_gun_cal > 0f && cal < lim.min_sec_gun_cal))
+                    {
+                        denyReason = "shipgen_limit: sec gun cal range";
+                        return false;
+                    }
+
+                    bool casemate = Ship.IsCasemateGun(data);
+                    if (!casemate && lim.max_sec_gun_count == 0f)
+                    {
+                        denyReason = "shipgen_limit: sec guns disabled";
+                        return false;
+                    }
+
+                    if (!casemate && lim.max_sec_gun_count > 0f && ship.parts != null)
+                    {
+                        int n = 0;
+                        var e = ship.parts.GetEnumerator();
+                        while (e.MoveNext())
+                        {
+                            var cur = e.Current;
+                            if (cur == null || cur.data == null) continue;
+                            if (ship.IsMainCal(cur.data)) continue;
+                            if (Ship.IsCasemateGun(cur.data)) continue;
+                            if (cur.data != data) continue;
+                            if (cur.data.isBarbette) continue;
+                            if (HasParent(cur, parentPart, c => c.data != null && c.data.isBarbette)) continue;
+                            n++;
+                        }
+                        if (n > lim.max_sec_gun_count)
+                        {
+                            denyReason = "shipgen_limit: sec gun count range";
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                HotfixLog.Warn("[SMS.1.SHIPGEN] CanAddGun: " + e.Message);
+                return true;
+            }
+        }
+
+        /// <summary>该炮是否仍"可选"（船体级限制；用于 AI 选炮列表过滤）。</summary>
+        public static bool IsGunAvailible(PartData data, Ship ship, ref bool __result)
+        {
+            __result = true;
+            try
+            {
+                if (data == null || ship == null || ship.hull == null || ship.hull.data == null) return true;
+                if (!PartLimitData.ContainsKey(data.name)) return true;
+
+                var hkey = ship.hull.data.name;
+                if (hkey == null || !PartLimitData.ContainsKey(hkey)) return true;
+                var lim = PartLimitData[hkey];
+                if (!lim.hasLimits) return true;
+
+                float cal = data.GetCaliberInch(ship);
+
+                if (ship.IsMainCal(data))
+                {
+                    if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
+                        || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
+                    { __result = false; return false; }
+
+                    if ((lim.max_main_gun_barrels > 0f && data.barrels > lim.max_main_gun_barrels)
+                        || (lim.min_main_gun_barrels > 0f && data.barrels < lim.min_main_gun_barrels))
+                    { __result = false; return false; }
+
+                    if (lim.max_main_gun_count > 0f && ship.mainGuns != null
+                        && ship.mainGuns.Count > lim.max_main_gun_count)
+                    { __result = false; return false; }
+
+                    if (lim.max_main_gun_cal_count > 0f && ship.mainGuns != null)
+                    {
+                        if (!CheckCalBuckets(ship.mainGuns, data, ship, cal, lim.max_main_gun_cal_count, true))
+                        { __result = false; return false; }
+                    }
+                }
+                else
+                {
+                    if ((lim.max_sec_gun_cal > 0f && cal > lim.max_sec_gun_cal)
+                        || (lim.min_sec_gun_cal > 0f && cal < lim.min_sec_gun_cal))
+                    { __result = false; return false; }
+
+                    bool casemate = Ship.IsCasemateGun(data);
+                    if (!casemate && ((lim.max_sec_gun_barrels > 0f && data.barrels > lim.max_sec_gun_barrels)
+                        || (lim.min_sec_gun_barrels > 0f && data.barrels < lim.min_sec_gun_barrels)))
+                    { __result = false; return false; }
+
+                    if (!casemate && lim.max_sec_gun_count == 0f) { __result = false; return false; }
+
+                    if (lim.max_sec_gun_cal_count > 0f && ship.parts != null)
+                    {
+                        if (!CheckSecCalBuckets(ship, data, cal, lim.max_sec_gun_cal_count))
+                        { __result = false; return false; }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                HotfixLog.Warn("[SMS.1.SHIPGEN] IsGunAvailible: " + e.Message);
+                __result = true;
+                return true;
+            }
+        }
+
+        /// <summary>主炮"口径分档"检查：不同口径档位数量不得超过限制，且相邻口径差 >= taf_shipgen_min_cal_gap。</summary>
+        private static bool CheckCalBuckets(Il2CppSystem.Collections.Generic.List<Part> guns, PartData data, Ship ship,
+                                            float cal, float maxBuckets, bool main)
+        {
+            try
+            {
+                int gap = 3;
+                try { gap = Config.Param("taf_shipgen_min_cal_gap", 3); } catch { }
+
+                int myCal = ModUtils.toInt(data.GetCaliberInch(null));
+                bool alreadyHas = false;
+                var buckets = new System.Collections.Generic.Dictionary<int, string>();
+
+                var e = guns.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    var cur = e.Current;
+                    if (cur == null || cur.data == null) continue;
+                    int c = ModUtils.toInt(cur.data.GetCaliberInch(ship));
+
+                    if (c == myCal && cur.data == data) { alreadyHas = true; break; }
+                    if (Mathf.Abs(c - myCal) < gap) return false;
+                    if (!buckets.ContainsKey(c)) buckets[c] = cur.data.name;
+                }
+
+                if (!alreadyHas && buckets.Count > maxBuckets) return false;
+                return true;
+            }
+            catch { return true; }
+        }
+
+        /// <summary>副炮"口径分档"检查。</summary>
+        private static bool CheckSecCalBuckets(Ship ship, PartData data, float cal, float maxBuckets)
+        {
+            try
+            {
+                int gap = 3;
+                try { gap = Config.Param("taf_shipgen_min_cal_gap", 3); } catch { }
+
+                int myCal = ModUtils.toInt(data.GetCaliberInch(null));
+                bool alreadyHas = false, hasCasemate = false;
+                var buckets = new System.Collections.Generic.Dictionary<int, string>();
+
+                var e = ship.parts.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    var cur = e.Current;
+                    if (cur == null || cur.data == null) continue;
+                    if (!cur.data.isGun) continue;
+                    if (ship.IsMainCal(cur.data)) continue;
+
+                    bool cas = Ship.IsCasemateGun(cur.data);
+                    if (cas) hasCasemate = true;
+
+                    int c = ModUtils.toInt(cur.data.GetCaliberInch(ship));
+                    if (c == myCal && cur.data == data) { alreadyHas = true; break; }
+                    if (Mathf.Abs(c - myCal) < gap) return false;
+                    if (!buckets.ContainsKey(c)) buckets[c] = cur.data.name;
+                }
+
+                if (!hasCasemate && Ship.IsCasemateGun(data)) alreadyHas = true;
+                if (!alreadyHas && buckets.Count > maxBuckets) return false;
+                return true;
+            }
+            catch { return true; }
+        }
+
+        /// <summary>能否再加鱼雷。</summary>
+        public static bool CanAddTorpedo(Part part, PartData data, Ship ship, ref string denyReason)
+        {
+            try
+            {
+                if (data == null) return true;
+                if (!PartLimitData.ContainsKey(data.name)) return true;
+                if (part == null || ship == null) return true;
+
+                var mount = part.mount;
+                if (mount == null || mount.parentPart == null) return true;
+                var parentData = mount.parentPart.data;
+                if (parentData != null && parentData.isHull) return true;
+
+                var parentPart = mount.parentPart;
+                var pkey = parentPart.data != null ? parentPart.data.name : null;
+                if (pkey == null || !PartLimitData.ContainsKey(pkey)) return true;
+
+                var lim = PartLimitData[pkey].BuildRestrictionsFor(part);
+                if (!lim.hasLimits) return true;
+
+                if (lim.max_torp_count == 0f)
+                {
+                    denyReason = "shipgen_limit: torp count range";
+                    return false;
+                }
+
+                if (lim.max_torp_count > 0f && ship.torpedoesAll != null)
+                {
+                    int n = 0;
+                    var e = ship.torpedoesAll.GetEnumerator();
+                    while (e.MoveNext())
+                    {
+                        var cur = e.Current;
+                        if (cur == null) continue;
+                        if (cur.mount == null || cur.mount.parentPart == null) continue;
+                        if (cur.data != null && cur.data.isBarbette) continue;
+                        if (HasParent(cur, parentPart, c => c.data != null && c.data.isBarbette)) continue;
+                        n++;
+                    }
+                    if (n > lim.max_torp_count)
+                    {
+                        denyReason = "shipgen_limit: torp count range";
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] CanAddTorpedo: " + e.Message); return true; }
+        }
+
+        /// <summary>该鱼雷是否仍可选。</summary>
+        public static bool IsTorpAvailible(PartData data, Ship ship, ref bool __result)
+        {
+            __result = true;
+            try
+            {
+                if (data == null || ship == null || ship.hull == null || ship.hull.data == null) return true;
+                if (!PartLimitData.ContainsKey(data.name)) return true;
+
+                var hkey = ship.hull.data.name;
+                if (hkey == null || !PartLimitData.ContainsKey(hkey)) return true;
+                var lim = PartLimitData[hkey];
+                if (!lim.hasLimits) return true;
+
+                if (lim.max_torp_count == 0f) { __result = false; return false; }
+
+                if (lim.max_torp_count > 0f && ship.torpedoesAll != null
+                    && ship.torpedoesAll.Count > lim.max_torp_count)
+                { __result = false; return false; }
+
+                bool isSub = data.paramx != null && data.paramx.ContainsKey("sub_torpedo");
+                if (!isSub)
+                {
+                    if ((lim.max_torp_tube_count > 0f && data.barrels > lim.max_torp_tube_count)
+                        || (lim.min_torp_tube_count > 0f && data.barrels < lim.min_torp_tube_count))
+                    { __result = false; return false; }
+                }
+
+                // 只能混用同一种鱼雷
+                if (ship.torpedoesAll != null && ship.torpedoesAll.Count > 0 && !isSub)
+                {
+                    Part first = null;
+                    var e = ship.torpedoesAll.GetEnumerator();
+                    while (e.MoveNext())
+                    {
+                        var cur = e.Current;
+                        if (cur == null || cur.data == null) continue;
+                        if (cur.data.paramx != null && cur.data.paramx.ContainsKey("sub_torpedo")) continue;
+                        first = cur; break;
+                    }
+                    if (first != null && first.data != data) { __result = false; return false; }
+                }
+
+                return true;
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] IsTorpAvailible: " + e.Message); __result = true; return true; }
+        }
+
+        /// <summary>能否再加烟囱（按"烟囱容量"饱和判断）。</summary>
+        public static bool CanAddFunnel(Part part, PartData data, Ship ship, ref string denyReason)
+        {
+            try
+            {
+                if (ship == null || data == null) return true;
+
+                if (!ship.statsValid) ship.CStats();
+
+                float target = 150f;
+                try { target = Config.Param("taf_shipgen_target_funnel_cap", 150f); } catch { }
+
+                float smoke = 0f;
+                try
+                {
+                    var gd = G.GameData;
+                    if (gd.stats != null && gd.stats.ContainsKey("smoke_exhaust"))
+                    {
+                        var statData = gd.stats["smoke_exhaust"];
+                        if (statData != null && ship.stats != null && ship.stats.ContainsKey(statData))
+                            smoke = ship.stats[statData].total;
+                    }
+                }
+                catch { return true; }
+
+                if (smoke < target) return true;
+
+                int n = 0;
+                float fcapAll = 0f, fcapThis = 0f;
+                if (ship.parts == null) return true;
+
+                var e = ship.parts.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    var cur = e.Current;
+                    if (cur == null || cur.data == null || !cur.data.isFunnel) continue;
+                    n++;
+
+                    float fcap = 0f;
+                    try
+                    {
+                        var gd = G.GameData;
+                        if (gd.stats != null && gd.stats.ContainsKey("fcap"))
+                        {
+                            var key = gd.stats["fcap"];
+                            if (cur.data.statsx != null && cur.data.statsx.ContainsKey(key))
+                                fcap = cur.data.statsx[key];
+                        }
+                    }
+                    catch { }
+
+                    fcapAll += fcap;
+                    if (cur.data == data) fcapThis = fcap;
+                }
+
+                if (fcapThis == 0f) return true;
+                if (n <= 1) return true;
+
+                if (smoke * (1f - fcapThis / fcapAll) < target) return true;
+
+                denyReason = "amount";
+                return false;
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] CanAddFunnel: " + e.Message); return true; }
+        }
+
+        /// <summary>统一入口：按部件类型分派。</summary>
+        public static bool CanAdd(Part part, ref string denyReason)
+        {
+            try
+            {
+                if (part == null) return true;
+                var data = part.data;
+                if (data == null) return true;
+
+                var ship = part.ship;
+
+                if (data.isGun) return CanAddGun(part, data, ship, ref denyReason);
+                if (data.isTorpedo) return CanAddTorpedo(part, data, ship, ref denyReason);
+                if (data.isFunnel) return CanAddFunnel(part, data, ship, ref denyReason);
+                return true;
+            }
+            catch { return true; }
+        }
+
+        /// <summary>统一入口：该部件是否可用（船体级）。</summary>
+        public static bool PartAvailible(Ship ship, PartData data, ref bool __result)
+        {
+            try
+            {
+                if (data == null) return true;
+                if (data.isGun) return IsGunAvailible(data, ship, ref __result);
+                if (data.isTorpedo) return IsTorpAvailible(data, ship, ref __result);
+                return true;
+            }
+            catch { return true; }
+        }
 
         /// <summary>启动时遍历所有部件，建立限制表（P-c 批次完成数据源接线）。</summary>
         public static void ParsePartLimitData()
