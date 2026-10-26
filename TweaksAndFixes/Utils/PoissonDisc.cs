@@ -15,10 +15,14 @@ namespace TweaksAndFixes
             var result = new List<Vector3>();
             if (separation <= 0.0001f) separation = 0.0001f;
 
-            float minX = area.center.x - area.size.x * 0.5f;
-            float maxX = area.center.x + area.size.x * 0.5f;
-            float minZ = area.center.z - area.size.z * 0.5f;
-            float maxZ = area.center.z + area.size.z * 0.5f;
+            // ★ [SMS.1.PROP] 与 duke 的用法对齐：调用方传入的 size 是**半宽/半深**
+            //   （例如 `(deckBounds.size.x - sep/4) / 2`），所以采样范围是 center ± size。
+            //   之前按 size 视为全宽（center ± size/2），导致布点只覆盖中间一半宽度 ⇒
+            //   装饰物全挤在船舯一条竖线上（port50 实测）。
+            float minX = area.center.x - area.size.x;
+            float maxX = area.center.x + area.size.x;
+            float minZ = area.center.z - area.size.z;
+            float maxZ = area.center.z + area.size.z;
             float y = area.center.y;
 
             float width = maxX - minX;

@@ -59,6 +59,8 @@ namespace TAFHotfixBatch1
         internal static bool DecorAwakeGuard = false;
         /// <summary>[SMS.1.DECOR] 是否启用"被炮塔/炮管遮挡则隐藏装饰件"（默认 0=只生成不隐藏）。</summary>
         internal static bool DecorHideOccluded = true;
+        /// <summary>[SMS.1.SHADOW] 关闭舯段投影（A/B 色差测试用）。</summary>
+        internal static bool MiddleShadowOff = false;
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>
@@ -219,6 +221,7 @@ namespace TAFHotfixBatch1
             MatProbe = GetBool("mat_probe", MatProbe);
             DecorAwakeGuard = GetBool("decor_awake_guard", DecorAwakeGuard);
             DecorHideOccluded = GetBool("decor_hide_occluded", DecorHideOccluded);
+            MiddleShadowOff = GetBool("middle_shadow_off", MiddleShadowOff);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);

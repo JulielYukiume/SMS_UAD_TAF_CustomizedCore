@@ -448,6 +448,22 @@ namespace TweaksAndFixes
                 Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] done: hull='" + hModelName + "' DeckProps children=" + pc);
             }
 
+            // ★ [SMS.1.SHADOW] A/B 测试：关闭"复制出来的舯段"的投影，用于验证色带是否自遮挡阴影
+            if (HotfixParams.MiddleShadowOff)
+            {
+                try
+                {
+                    int cnt = 0;
+                    var mids = h.middles;
+                    if (mids != null)
+                        for (int i = 0; i < mids.Count; i++)
+                            foreach (var rr in mids[i].GetComponentsInChildren<Renderer>())
+                            { rr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; cnt++; }
+                    Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.SHADOW] middle shadows off: " + cnt + " renderers");
+                }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.SHADOW] " + e.Message); }
+            }
+
             s.RefreshHullStats();
             s.RefreshMountedParts(null);
             h.OnRenderersWasChanged();
