@@ -95,6 +95,9 @@ namespace TweaksAndFixes
                 }
                 catch { }
 
+                // 把 oceanGraphics.csv 的三档参数应用到真实海面 FFT
+                try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
+
                 HotfixLog.Info("[SMS.1.SCENE] bind state=" + state
                                + "  LevelConstructor=" + (Patch_SceneManagerPreview.LevelConstructor != null)
                                + "  LevelBattle=" + (Patch_SceneManagerPreview.LevelBattle != null)
