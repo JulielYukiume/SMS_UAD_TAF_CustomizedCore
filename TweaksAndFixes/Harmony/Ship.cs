@@ -995,18 +995,15 @@ namespace TweaksAndFixes
 
                 var props = ship.hull.gameObject.GetChild("DeckProps").GetChildren();
 
-                for (int i = 0; i < props.Count; i += 2)
+                // ★ [SMS.1.PROP] 健壮化：3.22 的新布点算法生成数量是**任意**的（不再是成对 + 镜像），
+                //   旧实现按 `i += 2` 并访问 `props[i + 1]`，遇到奇数个会抛
+                //   ArgumentOutOfRangeException（2026-10-26 实测，异常会让整个装饰流程中断）。
+                //   这里改为逐项判定，但保留"每 2 个共享同一状态"的原有语义。
+                int bucketSize = UiM.TAF_Settings.settings.deckPropCoverage / 25;   // 0..4
+                for (int i = 0; i < props.Count; i++)
                 {
-                    if ((i / 2) % 4 >= UiM.TAF_Settings.settings.deckPropCoverage / 25)
-                    {
-                        props[i].SetActive(false);
-                        props[i + 1].SetActive(false);
-                    }
-                    else
-                    {
-                        props[i].SetActive(true);
-                        props[i + 1].SetActive(true);
-                    }
+                    bool on = ((i / 2) % 4) < bucketSize;
+                    props[i].SetActive(on);
                 }
             }
         }
