@@ -88,6 +88,13 @@ namespace TweaksAndFixes
                              && Patch_SceneManagerPreview.LevelBattle != null;
                 Patch_SceneManagerPreview.PreviewInited = ready;
 
+                try
+                {
+                    if (global::TAFHotfixBatch1.HotfixParams.StaticOceanProbe)
+                        Patch_SceneManagerPreview.ProbeOcean();
+                }
+                catch { }
+
                 HotfixLog.Info("[SMS.1.SCENE] bind state=" + state
                                + "  LevelConstructor=" + (Patch_SceneManagerPreview.LevelConstructor != null)
                                + "  LevelBattle=" + (Patch_SceneManagerPreview.LevelBattle != null)

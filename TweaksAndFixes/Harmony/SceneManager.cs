@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using HarmonyLib;
 using Il2Cpp;
 using Il2CppNavalAction.Common;
@@ -534,6 +535,65 @@ internal static class Patch_SceneManagerPreview
 
     /// <summary>[SMS.1.OCEAN] 战斗/构造器场景里的天气对象（由场景配置阶段赋值）。</summary>
     internal static GameObject DayCycleAndWeatherO;
+
+
+        /// <summary>
+        /// [SMS.1.OCEAN] 静态海面可行性探针：打印 LevelBattle 下海面对象的组件/材质/贴图信息。
+        ///
+        /// 背景：duke 的"静态海面"是**降质替代方案**（低质量海水渲染）。
+        /// 我们这版没有 `OceanFFT` 对象（探针显示是 `opwOcean4OPW_00`），
+        /// 所以先确认这个对象能否被当作"平面 + 滚动贴图"来驱动：
+        ///   · 是否有 MeshRenderer / MeshFilter（能不能缩放成平面）
+        ///   · 材质有哪些贴图属性（_MainTex / _BumpMap ...）
+        /// 开关：`static_ocean_probe`（默认 1，只读）
+        /// </summary>
+        internal static void ProbeOcean()
+        {
+            try
+            {
+                var lb = Patch_SceneManagerPreview.LevelBattle;
+                if (lb == null) { HotfixLog.Info("[SMS.1.OCEAN] LevelBattle=null"); return; }
+
+                var tr = lb.transform;
+                for (int i = 0; i < tr.childCount; i++)
+                {
+                    var c = tr.GetChild(i);
+                    if (c == null) continue;
+                    string nm = c.name;
+                    if (!(nm.Contains("Ocean") || nm.Contains("ocean") || nm.Contains("Water") || nm.Contains("water")))
+                        continue;
+
+                    var sb = new StringBuilder();
+                    sb.Append("[SMS.1.OCEAN] ocean obj '").Append(nm).Append("'")
+                      .Append(" pos=").Append(c.position.ToString("0.#"))
+                      .Append(" scale=").Append(c.lossyScale.ToString("0.##"));
+
+                    var mf = c.GetComponent<MeshFilter>();
+                    var mr = c.GetComponent<MeshRenderer>();
+                    sb.Append(" meshFilter=").Append(mf != null)
+                      .Append(" meshRenderer=").Append(mr != null);
+
+                    if (mr != null && mr.sharedMaterial != null)
+                    {
+                        var mat = mr.sharedMaterial;
+                        sb.Append(" mat='").Append(mat.name).Append("'");
+                        sb.Append(" shader='").Append(mat.shader != null ? mat.shader.name : "?").Append("'");
+                        try
+                        {
+                            if (mat.HasProperty("_MainTex") && mat.mainTexture != null)
+                                sb.Append(" mainTex='").Append(mat.mainTexture.name).Append("'");
+                        }
+                        catch { }
+                    }
+
+                    HotfixLog.Info(sb.ToString());
+                }
+
+                var dcw = Patch_SceneManagerPreview.DayCycleAndWeatherO;
+                HotfixLog.Info("[SMS.1.OCEAN] DayCycleAndWeather=" + (dcw != null ? dcw.name : "null"));
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] probe: " + e.Message); }
+        }
 
     /// <summary>切换"预览模式"（见上）。未初始化时为空操作。</summary>
     public static void ConfigureForPreview(bool active)
