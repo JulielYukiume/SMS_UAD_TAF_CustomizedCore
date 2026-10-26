@@ -762,51 +762,75 @@ internal static class Patch_SceneManagerPreview
             {
                 if (_disabledForNone.Count > 0) return;   // 已处理
 
-                // 船渠：LevelConstructor/Dock 下的水面对象
-                var lc = LevelConstructor;
-                if (lc != null)
+                // ★ 用全场景扫描代替"猜层级"：把所有"看起来像水"的 MeshRenderer 关掉
+                //   判据：对象名 或 材质名 或 shader 名 含 water/ocean/sea/pool 等关键词
+                int scanned = 0, hidden = 0;
+                try
                 {
-                    var dock = lc.transform.Find("Dock");
-                    if (dock != null)
+                    var all = UnityEngine.Object.FindObjectsOfType<MeshRenderer>();
+                    if (all != null)
                     {
-                        for (int i = 0; i < dock.childCount; i++)
+                        for (int k = 0; k < all.Length; k++)
                         {
-                            var c = dock.GetChild(i);
-                            if (c == null) continue;
-                            string n = c.name;
-                            if (n.Contains("Water") || n.Contains("water") || n.Contains("Sea"))
-                            {
-                                c.gameObject.SetActive(false);
-                                _disabledForNone.Add(c.gameObject);
-                                HotfixLog.Info("[SMS.1.OCEAN] none: disabled dock water '" + n + "'");
-                            }
-                        }
-                    }
-                }
+                            var mr = all[k];
+                            if (mr == null) continue;
+                            scanned++;
 
-                // 战斗场景的雾 / 水下效果
-                var lb = LevelBattle;
-                if (lb != null)
-                {
-                    for (int i = 0; i < lb.transform.childCount; i++)
-                    {
-                        var c = lb.transform.GetChild(i);
-                        if (c == null) continue;
-                        string n = c.name;
-                        if (n.Contains("Fog") || n.Contains("Underwater") || n.Contains("underwater"))
-                        {
-                            c.gameObject.SetActive(false);
-                            _disabledForNone.Add(c.gameObject);
-                            HotfixLog.Info("[SMS.1.OCEAN] none: disabled '" + n + "'");
+                            string goName = "";
+                            string matName = "";
+                            string shaderName = "";
+                            try { goName = mr.gameObject.name; } catch { }
+                            try { if (mr.sharedMaterial != null) matName = mr.sharedMaterial.name; } catch { }
+                            try { if (mr.sharedMaterial != null && mr.sharedMaterial.shader != null) shaderName = mr.sharedMaterial.shader.name; } catch { }
+
+                            string all3 = (goName + "|" + matName + "|" + shaderName).ToLowerInvariant();
+                            bool isWater = all3.Contains("water") || all3.Contains("ocean") || all3.Contains("sea")
+                                        || all3.Contains("wave") || all3.Contains("pool") || all3.Contains("harbor");
+
+                            if (!isWater) continue;
+
+                            // 不要把我们自己的静态海面也列进来
+                            try { if (StaticOcean != null && mr.gameObject == StaticOcean) continue; } catch { }
+
+                            if (_debugLog++ < 40)
+                                HotfixLog.Info("[SMS.1.OCEAN] water candidate: go='" + goName
+                                               + "' mat='" + matName + "' shader='" + shaderName + "'");
+
+                            mr.gameObject.SetActive(false);
+                            _disabledForNone.Add(mr.gameObject);
+                            hidden++;
                         }
                     }
                 }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] scan water: " + e.Message); }
+
+                // 反射探针（"水面反光"观感的主要来源之一）
+                try
+                {
+                    var probes = UnityEngine.Object.FindObjectsOfType<ReflectionProbe>();
+                    if (probes != null)
+                    {
+                        for (int k = 0; k < probes.Length; k++)
+                        {
+                            var rp = probes[k];
+                            if (rp == null) continue;
+                            rp.gameObject.SetActive(false);
+                            _disabledForNone.Add(rp.gameObject);
+                        }
+                    }
+                }
+                catch { }
 
                 // 全局雾
                 try { RenderSettings.fog = false; } catch { }
+
+                HotfixLog.Info("[SMS.1.OCEAN] none mode: scanned=" + scanned + " waterHidden=" + hidden
+                               + " totalDisabled=" + _disabledForNone.Count);
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] DisableWater: " + e.Message); }
         }
+
+        private static int _debugLog;
 
         private static void RestoreWaterAndUnderwaterEffects()
         {
