@@ -58,7 +58,7 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.DECOR] 是否用替代实现拦截空渲染器的 Decor.Awake（默认 0=不介入）。</summary>
         internal static bool DecorAwakeGuard = false;
         /// <summary>[SMS.1.DECOR] 是否启用"被炮塔/炮管遮挡则隐藏装饰件"（默认 0=只生成不隐藏）。</summary>
-        internal static bool DecorHideOccluded = false;
+        internal static bool DecorHideOccluded = true;
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>

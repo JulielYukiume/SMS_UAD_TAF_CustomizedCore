@@ -69,7 +69,16 @@ namespace TweaksAndFixes
             if (hull == null)
             {
                 sb.Append("  hull=null");
-                HotfixLog.Info(sb.ToString());
+                // ★ 首/尾段：hullSections 是 IEnumerable<GameObject>（IL2CPP 绑定缺 MoveNext），
+            //   改用 hull.bow / hull.stern 这两个直接引用。
+            try
+            {
+                AppendSection(sb, "Bow", hull.bow);
+                AppendSection(sb, "Stern", hull.stern);
+            }
+            catch (Exception e1) { sb.Append("\n  bow/stern err ").Append(e1.Message); }
+
+            HotfixLog.Info(sb.ToString());
                 return;
             }
 
@@ -104,6 +113,24 @@ namespace TweaksAndFixes
             catch (Exception e) { sb.Append("  middles err ").Append(e.Message); }
 
             HotfixLog.Info(sb.ToString());
+        }
+
+
+        /// <summary>紧凑输出一个段的缩放/法线信息。</summary>
+        private static void AppendSection(StringBuilder sb, string tag, GameObject g)
+        {
+            if (g == null) { sb.Append("\n   ").Append(tag).Append("=null"); return; }
+            string sc = "?", lsc = "?";
+            try
+            {
+                var ls = g.transform.localScale;
+                var ly = g.transform.lossyScale;
+                sc = "(" + ls.x.ToString("0.###") + "," + ls.y.ToString("0.###") + "," + ls.z.ToString("0.###") + ")";
+                lsc = "(" + ly.x.ToString("0.###") + "," + ly.y.ToString("0.###") + "," + ly.z.ToString("0.###") + ")";
+            }
+            catch { }
+            sb.Append("\n   ").Append(tag).Append(" ").Append(g.name)
+              .Append(" local=").Append(sc).Append(" lossy=").Append(lsc);
         }
 
         private static string Describe(GameObject go)

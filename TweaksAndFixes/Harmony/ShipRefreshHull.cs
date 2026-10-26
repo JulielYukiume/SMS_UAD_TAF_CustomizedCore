@@ -350,6 +350,10 @@ namespace TweaksAndFixes
 
             Melon<TweaksAndFixes>.Logger.Msg($"  Settup colision");
 
+            Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] enter: hull='" + hModelName
+                + "' coverage=" + UiM.TAF_Settings.settings.deckPropCoverage
+                + " updateSections=" + updateSections);
+
             if (UiM.TAF_Settings.settings.deckPropCoverage == 0)
             {
                 Util.FindChild(h, "DeckProps")?.TryDestroy(true);
@@ -426,6 +430,12 @@ namespace TweaksAndFixes
                         bucket.Value.Pop().TryDestroy(true);
 
                 template.TryDestroy(true);
+            }
+
+            {
+                int pc = -1;
+                try { var dp = Util.FindChild(h, "DeckProps"); pc = dp != null ? dp.GetChildren().Count : -2; } catch { }
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] done: hull='" + hModelName + "' DeckProps children=" + pc);
             }
 
             s.RefreshHullStats();
