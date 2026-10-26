@@ -396,8 +396,8 @@ namespace TweaksAndFixes
                     int RandomIndex = UnityEngine.Random.Range(0, props.Count);
 
                     {
-                        Vector3 rawPos = new(p.x - shipBounds.size.x / 2f, 0, p.y - shipBounds.size.z / 2);
-                        deck = s.FindDeckAtPoint(rawPos);
+                        Vector3 rawPos;
+                        deck = ResolveDeck(s, h.transform, p, out rawPos);
 
                         if (deck == null)
                             continue;
@@ -414,10 +414,12 @@ namespace TweaksAndFixes
                     }
 
                     {
-                        Vector3 rawPos = new(-(p.x - shipBounds.size.x / 2f), 0, p.y - shipBounds.size.z / 2);
-
-                        if (deck == null)
+                        Vector3 rawPos;
+                        var deckR = ResolveDeck(s, h.transform, new Vector2(-p.x, p.y), out rawPos);
+                        if (deckR == null)
                             continue;
+                        prop = null;
+                        _ = deckR;
 
                         if (PropCache[props[RandomIndex].name].Count > 0)
                         {
@@ -466,5 +468,27 @@ namespace TweaksAndFixes
 
             return false;
         }
+        /// <summary>
+        /// [SMS.1.PROP] 布点坐标 → (甲板, 局部坐标)。
+        /// PoissonDisc 返回世界 XZ；原移植代码又减了 shipBounds/2 后直接喂 FindDeckAtPoint，
+        /// 导致每个点都判定不到甲板（port48：props=27 pts=61 但 children=0）。
+        /// 这里三级回退：世界坐标 → hull 局部 → 旧相对坐标。
+        /// </summary>
+        private static BoxCollider ResolveDeck(Ship s, Transform hullTr, Vector2 p, out Vector3 usedLocal)
+        {
+            usedLocal = Vector3.zero;
+            Vector3 world = new Vector3(p.x, hullTr != null ? hullTr.position.y : 0f, p.y);
+
+            try { var d = s.FindDeckAtPoint(world); if (d != null) { usedLocal = hullTr.InverseTransformPoint(world); return d; } } catch { }
+            try { var local = hullTr.InverseTransformPoint(world); var d2 = s.FindDeckAtPoint(local); if (d2 != null) { usedLocal = local; return d2; } } catch { }
+            try
+            {
+                var rel = new Vector3(p.x - s.hullSize.size.x / 2f, 0f, p.y - s.hullSize.size.z / 2f);
+                var d3 = s.FindDeckAtPoint(rel); if (d3 != null) { usedLocal = rel; return d3; }
+            }
+            catch { }
+            return null;
+        }
+
     }
 }
