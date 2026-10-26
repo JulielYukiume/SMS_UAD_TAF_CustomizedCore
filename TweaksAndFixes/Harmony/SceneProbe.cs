@@ -98,6 +98,14 @@ namespace TweaksAndFixes
                 // 把 oceanGraphics.csv 的三档参数应用到真实海面 FFT
                 try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
 
+                // 静态海面（可选）
+                try
+                {
+                    if (global::TAFHotfixBatch1.HotfixParams.StaticOcean)
+                        Patch_SceneManagerPreview.CreateStaticOcean();
+                }
+                catch { }
+
                 HotfixLog.Info("[SMS.1.SCENE] bind state=" + state
                                + "  LevelConstructor=" + (Patch_SceneManagerPreview.LevelConstructor != null)
                                + "  LevelBattle=" + (Patch_SceneManagerPreview.LevelBattle != null)

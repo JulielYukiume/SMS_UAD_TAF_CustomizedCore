@@ -537,6 +537,155 @@ internal static class Patch_SceneManagerPreview
     internal static GameObject DayCycleAndWeatherO;
 
 
+
+        // ======================================================================
+        //  [SMS.1.OCEAN] 静态海面（移植 duke 的低质海面方案）
+        //
+        //  贴图来自 mod 包：Mods/TAFData/Tileable_Ocean.png (+ _Bump)
+        //  做法：自建一个超大四边形，跟随相机 XZ、Y 固定在水面；每帧滚动 _MainTex。
+        //  开关：static_ocean（默认 0，避免默认改变观感）
+        // ======================================================================
+
+        internal static Material StaticOceanMat;
+        private static float _oceanDt;
+        private static bool _oceanLooping;
+
+        private static Texture2D LoadPng(string fileName)
+        {
+            try
+            {
+                string root = MelonLoader.Utils.MelonEnvironment.ModsDirectory;
+                string[] candidates =
+                {
+                    System.IO.Path.Combine(root, "TAFData", fileName),
+                    System.IO.Path.Combine(root, fileName),
+                };
+
+                foreach (var path in candidates)
+                {
+                    if (!System.IO.File.Exists(path)) continue;
+                    var bytes = System.IO.File.ReadAllBytes(path);
+                    var tex = new Texture2D(2, 2, TextureFormat.RGBA32, true);
+                    if (tex.LoadImage(bytes, false)) return tex;
+                }
+
+                HotfixLog.Warn("[SMS.1.OCEAN] texture not found: " + fileName);
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] load png: " + e.Message); }
+            return null;
+        }
+
+        /// <summary>创建静态海面（只在 static_ocean=1 时调用）。</summary>
+        internal static void CreateStaticOcean()
+        {
+            try
+            {
+                if (StaticOcean != null) return;
+                if (LevelBattle == null) return;
+
+                var go = new GameObject("SMS_StaticOcean");
+                go.transform.SetParent(LevelBattle.transform, false);
+                go.transform.localPosition = Vector3.zero;
+                go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);   // 四边形躺平
+                go.transform.localScale = new Vector3(100000f, 100000f, 0.05f);
+
+                var mf = go.AddComponent<MeshFilter>();
+                mf.sharedMesh = BuildQuadMesh();
+
+                var mr = go.AddComponent<MeshRenderer>();
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+
+                var shader = Shader.Find("Standard");
+                if (shader == null) shader = Shader.Find("Unlit/Texture");
+
+                var mat = new Material(shader);
+                var main = LoadPng("Tileable_Ocean.png");
+                var bump = LoadPng("Tileable_Ocean_Bump.png");
+
+                if (main != null)
+                {
+                    main.wrapMode = TextureWrapMode.Repeat;
+                    if (mat.HasProperty("_MainTex")) mat.mainTexture = main;
+                    mat.mainTextureScale = new Vector2(200f, 200f);
+                }
+
+                if (bump != null && mat.HasProperty("_BumpMap"))
+                {
+                    bump.wrapMode = TextureWrapMode.Repeat;
+                    mat.SetTexture("_BumpMap", bump);
+                }
+
+                if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", 0.75f);
+                if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0.1f);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", new Color(0.05f, 0.12f, 0.18f, 1f));
+
+                mr.sharedMaterial = mat;
+
+                StaticOcean = go;
+                StaticOceanMat = mat;
+                StaticOceanEnabled = true;
+                PreviewInited = true;
+
+                HotfixLog.Info("[SMS.1.OCEAN] static ocean created (tex=" + (main != null) + ", bump=" + (bump != null) + ")");
+
+                if (!_oceanLooping)
+                {
+                    _oceanLooping = true;
+                    try { MelonLoader.MelonCoroutines.Start(OceanLoop()); }
+                    catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] start loop: " + e.Message); }
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] CreateStaticOcean: " + e.Message); }
+        }
+
+        /// <summary>1x1 四边形（朝 +Z，旋转 90° 后躺平）。</summary>
+        private static Mesh BuildQuadMesh()
+        {
+            var m = new Mesh();
+            m.vertices = new Vector3[]
+            {
+                new Vector3(-0.5f, -0.5f, 0f),
+                new Vector3( 0.5f, -0.5f, 0f),
+                new Vector3( 0.5f,  0.5f, 0f),
+                new Vector3(-0.5f,  0.5f, 0f),
+            };
+            m.uv = new Vector2[]
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f),
+            };
+            m.triangles = new int[] { 0, 2, 1, 0, 3, 2 };
+            m.RecalculateNormals();
+            return m;
+        }
+
+        /// <summary>每帧：跟随相机 XZ、滚动贴图。</summary>
+        private static System.Collections.IEnumerator OceanLoop()
+        {
+            while (true)
+            {
+                yield return null;
+
+                try
+                {
+                    if (!StaticOceanEnabled || StaticOcean == null) continue;
+
+                    _oceanDt = (_oceanDt + Time.deltaTime) % 100f;
+
+                    var cam = G.cam;
+                    if (cam != null)
+                    {
+                        var p = cam.transform.position;
+                        StaticOcean.transform.position = new Vector3(p.x, 0f, p.z);
+                    }
+
+                    if (StaticOceanMat != null)
+                        StaticOceanMat.SetTextureOffset("_MainTex", new Vector2(_oceanDt / 50f, _oceanDt / 50f));
+                }
+                catch { }
+            }
+        }
+
         /// <summary>
         /// [SMS.1.OCEAN] 静态海面可行性探针：打印 LevelBattle 下海面对象的组件/材质/贴图信息。
         ///
