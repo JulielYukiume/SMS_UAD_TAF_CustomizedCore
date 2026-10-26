@@ -121,12 +121,30 @@ namespace TweaksAndFixes
                 var dcw = obj.GetComponent<DayCycleAndWeather>();
                 if (dcw == null) return;
 
+                // 详细诊断：oceanFFT / fftSimParams 是否就绪
+                var fft = dcw.oceanFFT;
+                var arr = fft != null ? fft.fftSimParams : null;
+                int len = -1;
+                try { len = arr != null ? arr.Length : -1; } catch { }
+
+                HotfixLog.Info("[SMS.1.OCEAN] apply: oceanFFT=" + (fft != null)
+                               + " fftSimParams=" + len + " presets=" + Loaded.Count);
+
                 int n = 0;
                 foreach (var d in Loaded)
                 {
                     d.PostProcess();
                     n++;
                 }
+
+                // 读回一个值确认真的写进去了
+                try
+                {
+                    if (arr != null && arr.Length > 0)
+                        HotfixLog.Info("[SMS.1.OCEAN] verify: [0].ampFactor=" + arr[0].ampFactor.ToString("0.#####")
+                                       + " [0].choppiness=" + arr[0].choppiness.ToString("0.###"));
+                }
+                catch { }
 
                 _applied = true;
                 HotfixLog.Info("[SMS.1.OCEAN] applied " + n + " ocean graphics preset(s) to FFT");

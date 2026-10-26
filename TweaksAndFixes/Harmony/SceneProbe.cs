@@ -95,8 +95,12 @@ namespace TweaksAndFixes
                 }
                 catch { }
 
-                // 把 oceanGraphics.csv 的三档参数应用到真实海面 FFT
-                try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
+                // 把 oceanGraphics.csv 的三档参数应用到真实海面 FFT（延迟 3 秒，等 oceanFFT 初始化）
+                try
+                {
+                    MelonLoader.MelonCoroutines.Start(DelayedOceanApply());
+                }
+                catch { }
 
                 // ★ [SMS.1.OCEAN] 静态海面由**设置菜单的 Ocean Type** 驱动（与 duke 的设计一致，
                 //   不再依赖外部 config 参数）：
@@ -124,6 +128,17 @@ namespace TweaksAndFixes
                                + "  previewInited=" + Patch_SceneManagerPreview.PreviewInited);
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.SCENE] bind: " + e.Message); }
+        }
+
+
+        private static System.Collections.IEnumerator DelayedOceanApply()
+        {
+            for (int i = 0; i < 3; i++) yield return null;
+            yield return null;
+            try { global::TweaksAndFixes.OceanGraphicsData.ResetApplied(); } catch { }
+            // 再等约 3 秒（180 帧 @60fps）
+            for (int i = 0; i < 180; i++) yield return null;
+            try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
         }
 
         private static void Probe(string state)
