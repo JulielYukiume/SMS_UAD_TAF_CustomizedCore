@@ -61,6 +61,8 @@ namespace TAFHotfixBatch1
         internal static bool DecorHideOccluded = true;
         /// <summary>[SMS.1.SHADOW] 关闭舯段投影（A/B 色差测试用）。</summary>
         internal static bool MiddleShadowOff = false;
+        /// <summary>[SMS.1.WL] 应用 hullData 的 waterline / stabilityForward（Beta4 引入）。</summary>
+        internal static bool HullDataApply = true;
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>
@@ -222,6 +224,7 @@ namespace TAFHotfixBatch1
             DecorAwakeGuard = GetBool("decor_awake_guard", DecorAwakeGuard);
             DecorHideOccluded = GetBool("decor_hide_occluded", DecorHideOccluded);
             MiddleShadowOff = GetBool("middle_shadow_off", MiddleShadowOff);
+            HullDataApply = GetBool("hull_data_apply", HullDataApply);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);
