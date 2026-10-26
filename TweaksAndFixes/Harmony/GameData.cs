@@ -45,6 +45,7 @@ namespace TweaksAndFixes
             MountOverrideData.LoadData();
         HullData.LoadData();
         OceanGraphicsData.LoadData();
+        global::TweaksAndFixes.Modules.ShipGen.ParsePartLimitData();
 
             // Disable `Mising required mount ...` error when starting battle. It's harmless.
             Part.flagCheckCorrectMounting = false;
