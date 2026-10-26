@@ -703,61 +703,125 @@ internal static class Patch_SceneManagerPreview
         ///   1 = 静态海面（由 CreateStaticOcean 负责）
         ///   2 = 无海面（隐藏静态海面；原版海面本身在构造器里已 scale=0 的占位对象不影响）
         /// </summary>
+        internal static readonly System.Collections.Generic.List<GameObject> _disabledForNone
+            = new System.Collections.Generic.List<GameObject>();
+
         internal static void SetOceanMode(int mode)
         {
             try
             {
-                // ★ [SMS.1.OCEAN] 真正切换"海面"：
-                //   原版海面由 DayCycleAndWeather.oceanFFT 渲染（不是 MeshRenderer 平面），
-                //   所以：
-                //     mode 0 (Default) → 打开原版 FFT 海面，销毁我们的静态平面
-                //     mode 1 (Simple)  → **关闭**原版 FFT 海面，显示我们的静态贴图平面（降质）
-                //     mode 2 (None)    → **关闭**原版 FFT 海面，也不创建静态平面（空海面）
                 bool wantStatic = (mode == 1);
                 bool wantVanilla = (mode == 0);
+                bool wantNone = (mode == 2);
 
-                // 1) 原版 FFT 海面开关
+                // ---- 1) 原版 FFT 海面（战斗/港口的主海面）----
                 var dcwObj = DayCycleAndWeatherO;
                 if (dcwObj != null)
                 {
                     var dcw = dcwObj.GetComponent<DayCycleAndWeather>();
-                    if (dcw != null)
+                    var fft = dcw != null ? dcw.oceanFFT : null;
+                    if (fft != null && fft.gameObject != null)
                     {
-                        var fft = dcw.oceanFFT;
-                        if (fft != null)
-                        {
-                            var go = fft.gameObject;
-                            if (go != null)
-                            {
-                                go.SetActive(wantVanilla);
-                                HotfixLog.Info("[SMS.1.OCEAN] vanilla FFT ocean -> active=" + wantVanilla);
-                            }
-                        }
-                        else
-                        {
-                            HotfixLog.Warn("[SMS.1.OCEAN] oceanFFT is null (cannot toggle vanilla ocean)");
-                        }
+                        fft.gameObject.SetActive(wantVanilla);
+                        HotfixLog.Info("[SMS.1.OCEAN] vanilla FFT ocean -> active=" + wantVanilla);
                     }
+                    else HotfixLog.Warn("[SMS.1.OCEAN] oceanFFT is null (cannot toggle vanilla ocean)");
                 }
 
-                // 2) 我们的静态平面
+                // ---- 2) 我们的静态平面 ----
                 if (wantStatic)
                 {
                     CreateStaticOcean();
                 }
-                else
+                else if (StaticOcean != null)
                 {
-                    if (StaticOcean != null)
-                    {
-                        UnityEngine.Object.Destroy(StaticOcean);
-                        StaticOcean = null;
-                        StaticOceanMat = null;
-                    }
+                    UnityEngine.Object.Destroy(StaticOcean);
+                    StaticOcean = null;
+                    StaticOceanMat = null;
                     StaticOceanEnabled = false;
                     HotfixLog.Info("[SMS.1.OCEAN] static ocean removed (mode=" + mode + ")");
                 }
+
+                // ---- 3) None 模式：关掉"船渠里的水"与"水下光效/雾" ----
+                if (wantNone)
+                {
+                    DisableWaterAndUnderwaterEffects();
+                }
+                else
+                {
+                    RestoreWaterAndUnderwaterEffects();
+                }
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] SetOceanMode: " + e.Message); }
+        }
+
+        /// <summary>None 模式：关闭船渠水面 + 水下光效/雾。</summary>
+        private static void DisableWaterAndUnderwaterEffects()
+        {
+            try
+            {
+                if (_disabledForNone.Count > 0) return;   // 已处理
+
+                // 船渠：LevelConstructor/Dock 下的水面对象
+                var lc = LevelConstructor;
+                if (lc != null)
+                {
+                    var dock = lc.transform.Find("Dock");
+                    if (dock != null)
+                    {
+                        for (int i = 0; i < dock.childCount; i++)
+                        {
+                            var c = dock.GetChild(i);
+                            if (c == null) continue;
+                            string n = c.name;
+                            if (n.Contains("Water") || n.Contains("water") || n.Contains("Sea"))
+                            {
+                                c.gameObject.SetActive(false);
+                                _disabledForNone.Add(c.gameObject);
+                                HotfixLog.Info("[SMS.1.OCEAN] none: disabled dock water '" + n + "'");
+                            }
+                        }
+                    }
+                }
+
+                // 战斗场景的雾 / 水下效果
+                var lb = LevelBattle;
+                if (lb != null)
+                {
+                    for (int i = 0; i < lb.transform.childCount; i++)
+                    {
+                        var c = lb.transform.GetChild(i);
+                        if (c == null) continue;
+                        string n = c.name;
+                        if (n.Contains("Fog") || n.Contains("Underwater") || n.Contains("underwater"))
+                        {
+                            c.gameObject.SetActive(false);
+                            _disabledForNone.Add(c.gameObject);
+                            HotfixLog.Info("[SMS.1.OCEAN] none: disabled '" + n + "'");
+                        }
+                    }
+                }
+
+                // 全局雾
+                try { RenderSettings.fog = false; } catch { }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] DisableWater: " + e.Message); }
+        }
+
+        private static void RestoreWaterAndUnderwaterEffects()
+        {
+            try
+            {
+                if (_disabledForNone.Count == 0) return;
+                foreach (var go in _disabledForNone)
+                {
+                    try { if (go != null) go.SetActive(true); } catch { }
+                }
+                _disabledForNone.Clear();
+                try { RenderSettings.fog = true; } catch { }
+                HotfixLog.Info("[SMS.1.OCEAN] restored water/fog objects");
+            }
+            catch { }
         }
 
         internal static void ProbeOcean()

@@ -38,6 +38,10 @@ namespace TweaksAndFixes
             string state = "";
             try { state = newState.ToString(); } catch { }
 
+            // ★ [SMS.1.OCEAN] 任何状态都延迟应用一次海面模式（主菜单/港口场景也要生效）
+            try { MelonLoader.MelonCoroutines.Start(DelayedApplyOceanMode(state)); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] schedule: " + e.Message); }
+
             // 只关心构造器/战斗相关状态
             if (state != "Constructor" && state != "Battle" && state != "LoadingBattle"
                 && state != "LoadingConstructor" && state != "CustomBattle")
@@ -136,6 +140,29 @@ namespace TweaksAndFixes
             // 再等约 3 秒（180 帧 @60fps）
             for (int i = 0; i < 180; i++) yield return null;
             try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
+        }
+
+
+        /// <summary>
+        /// [SMS.1.OCEAN] 延迟 ~30 帧后绑定场景并应用海面模式。
+        ///
+        /// 用"任何 ChangeState 都触发 + 延迟"的方式，解决主菜单/港口场景
+        /// 首次进入时不生效的问题（Beta6 在主菜单也生效）。
+        /// </summary>
+        private static System.Collections.IEnumerator DelayedApplyOceanMode(string state)
+        {
+            for (int i = 0; i < 30; i++) yield return null;
+
+            try { BindScene(state); } catch { }
+
+            try
+            {
+                int oceanType = 0;
+                try { oceanType = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+                Patch_SceneManagerPreview.SetOceanMode(oceanType);
+                HotfixLog.Info("[SMS.1.OCEAN] delayed apply state=" + state + " oceanType=" + oceanType);
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] delayed apply: " + e.Message); }
         }
 
         private static void Probe(string state)
