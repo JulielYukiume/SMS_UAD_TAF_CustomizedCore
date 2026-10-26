@@ -981,16 +981,6 @@ namespace TweaksAndFixes.Modules
                         return false;
                     }
 
-                    if (lim.max_main_gun_barrels > 0f)
-                    {
-                        int tb = TotalMainBarrels(ship) + data.barrels;
-                        if (tb > lim.max_main_gun_barrels)
-                        {
-                            denyReason = "shipgen_limit: main gun barrels range";
-                            return false;
-                        }
-                    }
-
                     if (lim.max_main_gun_count > 0f && ship.mainGuns != null)
                     {
                         int n = 0;
@@ -1081,11 +1071,12 @@ namespace TweaksAndFixes.Modules
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
                     { Diag("  DENY main cal"); __result = false; return false; }
 
-                    // ★ 管数是**全舰总管数**语义（SMS 的 min_main_gun_barrels:8 指整舰至少 8 管），
-                    //   且候选过滤只应查上限；下限是"最终设计"的目标，不该拒掉单个候选。
-                    int totalMainBarrels = TotalMainBarrels(ship) + data.barrels;
-                    if (lim.max_main_gun_barrels > 0f && totalMainBarrels > lim.max_main_gun_barrels)
-                    { Diag("  DENY main barrels total=" + totalMainBarrels + " max=" + lim.max_main_gun_barrels); __result = false; return false; }
+                    // ★ 语义已核实（见本轮分析）：`*_barrels` 是**单个炮塔的管数**（Beta6 用 data.barrels 直接比较）。
+                    //   因此 `min_main_gun_barrels: 8` 这类写法在语义上不可能满足（炮塔最多 4 管）——
+                    //   那属于**数据写法问题**，不是判定 bug。这里保持 duke 的逐件语义。
+                    if ((lim.max_main_gun_barrels > 0f && data.barrels > lim.max_main_gun_barrels)
+                        || (lim.min_main_gun_barrels > 0f && data.barrels < lim.min_main_gun_barrels))
+                    { Diag("  DENY main barrels=" + data.barrels + " range " + lim.min_main_gun_barrels.ToString("0.#") + "~" + lim.max_main_gun_barrels.ToString("0.#")); __result = false; return false; }
 
                     if (lim.max_main_gun_count > 0f && ship.mainGuns != null
                         && ship.mainGuns.Count > lim.max_main_gun_count)
