@@ -707,7 +707,45 @@ internal static class Patch_SceneManagerPreview
         {
             try
             {
-                if (mode == 0 || mode == 2)
+                // ★ [SMS.1.OCEAN] 真正切换"海面"：
+                //   原版海面由 DayCycleAndWeather.oceanFFT 渲染（不是 MeshRenderer 平面），
+                //   所以：
+                //     mode 0 (Default) → 打开原版 FFT 海面，销毁我们的静态平面
+                //     mode 1 (Simple)  → **关闭**原版 FFT 海面，显示我们的静态贴图平面（降质）
+                //     mode 2 (None)    → **关闭**原版 FFT 海面，也不创建静态平面（空海面）
+                bool wantStatic = (mode == 1);
+                bool wantVanilla = (mode == 0);
+
+                // 1) 原版 FFT 海面开关
+                var dcwObj = DayCycleAndWeatherO;
+                if (dcwObj != null)
+                {
+                    var dcw = dcwObj.GetComponent<DayCycleAndWeather>();
+                    if (dcw != null)
+                    {
+                        var fft = dcw.oceanFFT;
+                        if (fft != null)
+                        {
+                            var go = fft.gameObject;
+                            if (go != null)
+                            {
+                                go.SetActive(wantVanilla);
+                                HotfixLog.Info("[SMS.1.OCEAN] vanilla FFT ocean -> active=" + wantVanilla);
+                            }
+                        }
+                        else
+                        {
+                            HotfixLog.Warn("[SMS.1.OCEAN] oceanFFT is null (cannot toggle vanilla ocean)");
+                        }
+                    }
+                }
+
+                // 2) 我们的静态平面
+                if (wantStatic)
+                {
+                    CreateStaticOcean();
+                }
+                else
                 {
                     if (StaticOcean != null)
                     {
@@ -716,6 +754,7 @@ internal static class Patch_SceneManagerPreview
                         StaticOceanMat = null;
                     }
                     StaticOceanEnabled = false;
+                    HotfixLog.Info("[SMS.1.OCEAN] static ocean removed (mode=" + mode + ")");
                 }
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] SetOceanMode: " + e.Message); }

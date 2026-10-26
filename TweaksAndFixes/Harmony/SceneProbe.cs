@@ -112,10 +112,7 @@ namespace TweaksAndFixes
                     int oceanType = 0;
                     try { oceanType = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
 
-                    if (oceanType == 1)
-                        Patch_SceneManagerPreview.CreateStaticOcean();
-                    else
-                        Patch_SceneManagerPreview.SetOceanMode(oceanType);
+                    Patch_SceneManagerPreview.SetOceanMode(oceanType);
 
                     HotfixLog.Info("[SMS.1.OCEAN] oceanType=" + oceanType);
                 }
