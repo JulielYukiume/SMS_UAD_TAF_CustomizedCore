@@ -319,6 +319,96 @@ namespace TweaksAndFixes.Modules
             }
         }
 
+
+        /// <summary>
+        /// [SMS.1.SHIPGEN] 生成后校验：检查 AI 刚生成的舰船是否违反 shipgen_limit。
+        ///
+        /// 说明：本方法**只校验并记录**，不修改舰船。原因：
+        ///   · Beta6 的做法是**整体替换** `Ship._GenerateRandomShip_d__573.MoveNext`
+        ///     （762 行，等于重写 AI 随机选件流程），风险极高；
+        ///   · 我们改为"生成后审计"，先验证 `shipgen_limit` 数据与判定是否正确，
+        ///     确认无误后再决定是否做"删除/重试"级别的强制。
+        ///
+        /// 开关：`shipgen_limits`（0=关闭，1=只审计，2=审计并尝试删除违规部件——未实现时等同 1）
+        /// </summary>
+        public static int ValidateGenerated(Ship ship)
+        {
+            if (ship == null || ship.hull == null || ship.hull.data == null) return 0;
+            if (PartLimitData.Count == 0) return 0;
+
+            string hkey = ship.hull.data.name;
+            if (hkey == null || !PartLimitData.ContainsKey(hkey)) return 0;
+
+            var lim = PartLimitData[hkey];
+            if (!lim.hasLimits) return 0;
+
+            int violations = 0;
+
+            try
+            {
+                int mainCount = 0, secCount = 0, torpCount = 0, funnelCount = 0;
+                int mainBarrels = 0;
+
+                if (ship.parts != null)
+                {
+                    var e = ship.parts.GetEnumerator();
+                    while (e.MoveNext())
+                    {
+                        var part = e.Current;
+                        if (part == null || part.data == null) continue;
+                        var d = part.data;
+
+                        if (d.isGun)
+                        {
+                            float cal = d.GetCaliberInch(ship);
+                            if (ship.IsMainCal(d))
+                            {
+                                mainCount++;
+                                mainBarrels += d.barrels;
+
+                                if (lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal) violations++;
+                                if (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal) violations++;
+                            }
+                            else if (!Ship.IsCasemateGun(d))
+                            {
+                                secCount++;
+                                if (lim.max_sec_gun_cal > 0f && cal > lim.max_sec_gun_cal) violations++;
+                                if (lim.min_sec_gun_cal > 0f && cal < lim.min_sec_gun_cal) violations++;
+                            }
+                        }
+                        else if (d.isTorpedo) torpCount++;
+                        else if (d.isFunnel) funnelCount++;
+                    }
+                }
+
+                if (lim.max_main_gun_count > 0f && mainCount > lim.max_main_gun_count) violations++;
+                if (lim.max_sec_gun_count > 0f && secCount > lim.max_sec_gun_count) violations++;
+                if (lim.max_torp_count > 0f && torpCount > lim.max_torp_count) violations++;
+                if (lim.max_torp_count == 0f && torpCount > 0) violations++;
+
+                if (violations > 0)
+                {
+                    HotfixLog.Info("[SMS.1.SHIPGEN] generated ship violates limits: ship='"
+                        + SafeName(ship) + "' hull='" + hkey + "'"
+                        + " main=" + mainCount + "/" + lim.max_main_gun_count
+                        + " sec=" + secCount + "/" + lim.max_sec_gun_count
+                        + " torp=" + torpCount + "/" + lim.max_torp_count
+                        + " funnel=" + funnelCount
+                        + " violations=" + violations);
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] ValidateGenerated: " + e.Message); }
+
+            return violations;
+        }
+
+        private static string SafeName(Ship s)
+        {
+            try { return s.vesselName; } catch { }
+            try { return s.name; } catch { }
+            return "?";
+        }
+
         /// <summary>按 PartData.name 索引的限制表（ParsePartLimitData 时填充）。</summary>
         public static System.Collections.Generic.Dictionary<string, PartLimits> PartLimitData
             = new System.Collections.Generic.Dictionary<string, PartLimits>();

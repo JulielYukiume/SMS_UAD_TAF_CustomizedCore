@@ -1401,6 +1401,20 @@ namespace TweaksAndFixes
         public static void OnShipgenEnd()
         {
             PrintShipgenEnd(Patch_Ship._GenerateRandomShipRoutine);
+
+            // ★ [SMS.1.SHIPGEN] 生成后审计（shipgen_limits >= 1 时启用）
+            if (global::TAFHotfixBatch1.HotfixParams.ShipGenLimits >= 1)
+            {
+                try
+                {
+                    var routine = Patch_Ship._GenerateRandomShipRoutine;
+                    var ship = routine != null ? routine.__4__this : null;
+                    if (ship != null)
+                        global::TweaksAndFixes.Modules.ShipGen.ValidateGenerated(ship);
+                }
+                catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.1.SHIPGEN] audit: " + e.Message); }
+            }
+
             shipGenActive = false;
         }
 
