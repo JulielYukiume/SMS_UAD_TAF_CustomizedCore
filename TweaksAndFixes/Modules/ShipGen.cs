@@ -834,6 +834,47 @@ namespace TweaksAndFixes.Modules
             return false;
         }
 
+
+        /// <summary>
+        /// [SMS.1.SHIPGEN] 判断"这门炮算主炮还是副炮"——**优先用 shipgen_limit 的口径区间**，
+        /// 而不是 `ship.IsMainCal(data)`。
+        ///
+        /// 为什么必须这样（2026-10-26 实测 + 用户 Beta 回测）：
+        ///   · 旧 TAF 式（`ai_min_caliber_main(13)` 等）由**游戏本体**处理，一直有效；
+        ///   · 新式 `shipgen_limit(...)`（3.21.0 起）**从未真正生效**：SMS 新船体永远"放不下主炮"；
+        ///   · Beta6 同病 ⇒ 不是我们移植引入。
+        /// 推断根因：AI 选炮时船还没有"主炮"，`ship.IsMainCal(data)` 对候选返回 false，
+        ///   于是主炮候选走了**副炮分支**；而副炮限制（如 max_sec_gun_cal:5）会把 10~12 英寸炮
+        ///   全部拒掉 ⇒ 表现为"永远放不下主炮"。
+        /// 所以这里改为：先用 limit 里声明的口径区间归类，区间无法判断时才回落到 IsMainCal。
+        /// </summary>
+        private static bool IsMainByLimits(PartData d, Ship ship, PartLimits lim)
+        {
+            try
+            {
+                float cal = d.GetCaliberInch(ship);
+
+                bool hasMainRange = lim.min_main_gun_cal > 0f || lim.max_main_gun_cal > 0f;
+                if (hasMainRange)
+                {
+                    bool inMain = (lim.min_main_gun_cal <= 0f || cal >= lim.min_main_gun_cal)
+                               && (lim.max_main_gun_cal <= 0f || cal <= lim.max_main_gun_cal);
+                    if (inMain) return true;
+
+                    bool hasSecRange = lim.min_sec_gun_cal > 0f || lim.max_sec_gun_cal > 0f;
+                    if (hasSecRange)
+                    {
+                        bool inSec = (lim.min_sec_gun_cal <= 0f || cal >= lim.min_sec_gun_cal)
+                                  && (lim.max_sec_gun_cal <= 0f || cal <= lim.max_sec_gun_cal);
+                        if (inSec) return false;
+                    }
+                }
+
+                return ship.IsMainCal(d);
+            }
+            catch { return true; }
+        }
+
         /// <summary>能否再加一门炮（主炮/副炮分别按各自限制）。</summary>
         public static bool CanAddGun(Part part, PartData data, Ship ship, ref string denyReason)
         {
@@ -861,7 +902,7 @@ namespace TweaksAndFixes.Modules
 
                 float cal = data.GetCaliberInch(ship);
 
-                if (ship.IsMainCal(data))
+                if (IsMainByLimits(data, ship, lim))
                 {
                     if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
@@ -954,7 +995,7 @@ namespace TweaksAndFixes.Modules
 
                 float cal = data.GetCaliberInch(ship);
 
-                if (ship.IsMainCal(data))
+                if (IsMainByLimits(data, ship, lim))
                 {
                     if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
