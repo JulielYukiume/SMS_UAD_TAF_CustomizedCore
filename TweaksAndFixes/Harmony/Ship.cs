@@ -1395,6 +1395,10 @@ namespace TweaksAndFixes
         public static void OnShipgenStart()
         {
             PrintShipgenStart(Patch_Ship._GenerateRandomShipRoutine, Patch_Ship._GenerateRandomShipRoutine.__4__this);
+
+            // [SMS.1.SHIPGEN] 每次生成前清空"鱼雷尺寸偏好"缓存（Beta6 同款）
+            try { global::TweaksAndFixes.Modules.ShipGen.DesiredTorpSize = null; } catch { }
+
             shipGenActive = true;
         }
 

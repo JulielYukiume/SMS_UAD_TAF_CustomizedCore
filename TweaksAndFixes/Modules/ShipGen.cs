@@ -584,6 +584,224 @@ namespace TweaksAndFixes.Modules
             return b1 + (b2 - b1) * ((v - a1) / (a2 - a1));
         }
 
+
+        // ======================================================================
+        //  生成后优化（移植 Beta6 Patch_ShipGenRandom.OptimizeComponents）
+        //  ① engine/boilers/fuel 组合择优（取最轻组合）—— 直接关系"设计能否通过"
+        //  ② 鱼雷推进器 fast → normal（省重量）
+        //  ③ 炮弹 light → normal
+        //  ④ 鱼雷尺寸偏好（读 shipgen_limit 的 pref_torp_diameter）
+        // ======================================================================
+
+        internal static ComponentData DesiredTorpSize;
+
+        private static bool CanModCompType(Ship ship, string key)
+        {
+            try
+            {
+                var gd = G.GameData;
+                if (gd.compTypes == null || !gd.compTypes.ContainsKey(key)) return false;
+                var ct = gd.compTypes[key];
+                return ship.components != null && ship.components.ContainsKey(ct);
+            }
+            catch { return false; }
+        }
+
+        private static bool CanModComp(Ship ship, string key)
+        {
+            try
+            {
+                var gd = G.GameData;
+                if (gd.components == null || !gd.components.ContainsKey(key)) return false;
+                var comp = gd.components[key];
+                return ship.components != null && ship.components.ContainsKey(comp.typex);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>生成后部件优化（含鱼雷尺寸偏好）。</summary>
+        public static void OptimizeComponents(Ship ship)
+        {
+            if (ship == null) return;
+
+            try { OptimizePowerplant(ship); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] optimize powerplant: " + e.Message); }
+
+            try { OptimizeSimple(ship, "torpedo_prop", "torpedo_prop_fast", "torpedo_prop_normal"); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] optimize torpedo_prop: " + e.Message); }
+
+            try { OptimizeSimple(ship, "shell", "shell_light", "shell_normal"); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] optimize shell: " + e.Message); }
+
+            try { OptimizeTorpSize(ship); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] optimize torp size: " + e.Message); }
+        }
+
+        /// <summary>① 动力组合：在所有"可用"的 engine/boilers/fuel 三元组里挑选**总重最轻**的一组。</summary>
+        private static void OptimizePowerplant(Ship ship)
+        {
+            if (!CanModCompType(ship, "boilers") || !CanModCompType(ship, "engine") || !CanModCompType(ship, "fuel"))
+                return;
+
+            var gd = G.GameData;
+            var ctBoilers = gd.compTypes["boilers"];
+            var ctEngine = gd.compTypes["engine"];
+            var ctFuel = gd.compTypes["fuel"];
+
+            float bestWeight = ship.Weight();
+            var bestEngine = ship.components[ctEngine];
+            var bestBoilers = ship.components[ctBoilers];
+            var bestFuel = ship.components[ctFuel];
+
+            var techs = gd.technologies;
+            if (techs == null) return;
+
+            var eEngine = techs.GetEnumerator();
+            while (eEngine.MoveNext())
+            {
+                var engineComp = eEngine.Current.Value != null ? eEngine.Current.Value.componentx : null;
+                if (engineComp == null || engineComp.type != "engine") continue;
+                if (!ship.IsComponentAvailable(engineComp)) continue;
+
+                var eBoilers = techs.GetEnumerator();
+                while (eBoilers.MoveNext())
+                {
+                    var boilersComp = eBoilers.Current.Value != null ? eBoilers.Current.Value.componentx : null;
+                    if (boilersComp == null || boilersComp.type != "boilers") continue;
+                    if (!ship.IsComponentAvailable(boilersComp)) continue;
+
+                    var eFuel = techs.GetEnumerator();
+                    while (eFuel.MoveNext())
+                    {
+                        var fuelComp = eFuel.Current.Value != null ? eFuel.Current.Value.componentx : null;
+                        if (fuelComp == null || fuelComp.type != "fuel") continue;
+                        if (!ship.IsComponentAvailable(fuelComp)) continue;
+
+                        try
+                        {
+                            ship.InstallComponent(engineComp, true);
+                            ship.InstallComponent(boilersComp, true);
+                            ship.InstallComponent(fuelComp, true);
+
+                            float w = ship.Weight();
+                            if (w < bestWeight)
+                            {
+                                bestWeight = w;
+                                bestEngine = engineComp;
+                                bestBoilers = boilersComp;
+                                bestFuel = fuelComp;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            try
+            {
+                ship.InstallComponent(bestEngine, true);
+                ship.InstallComponent(bestBoilers, true);
+                ship.InstallComponent(bestFuel, true);
+            }
+            catch { }
+        }
+
+        /// <summary>②③ 简单替换：若当前是 from 且 to 可用，则换成 to。</summary>
+        private static void OptimizeSimple(Ship ship, string typeKey, string fromKey, string toKey)
+        {
+            if (!CanModCompType(ship, typeKey)) return;
+            if (!CanModComp(ship, fromKey) || !CanModComp(ship, toKey)) return;
+
+            var gd = G.GameData;
+            var ct = gd.compTypes[typeKey];
+            if (!ship.components.ContainsKey(ct)) return;
+
+            if (ship.components[ct] == gd.components[fromKey])
+                ship.InstallComponent(gd.components[toKey], true);
+        }
+
+        /// <summary>④ 鱼雷尺寸偏好：按 pref_torp_diameter（-1 未设 / 0..4 分档）挑选。</summary>
+        private static void OptimizeTorpSize(Ship ship)
+        {
+            if (ship.hull == null || ship.hull.data == null) return;
+            string hkey = ship.hull.data.name;
+            if (hkey == null || !PartLimitData.ContainsKey(hkey)) return;
+
+            var lim = PartLimitData[hkey];
+
+            if (!CanModCompType(ship, "torpedo_size")) return;
+            var ct = G.GameData.compTypes["torpedo_size"];
+
+            // 已有偏好且当前不是它就换上
+            if (DesiredTorpSize != null)
+            {
+                try
+                {
+                    if (ship.components[ct] != DesiredTorpSize)
+                    {
+                        if (HotfixParams.ShipGenLimits >= 2)
+                            HotfixLog.Info("[SMS.1.SHIPGEN] torp size -> " + DesiredTorpSize.name);
+                        ship.InstallComponent(DesiredTorpSize, true);
+                    }
+                }
+                catch { }
+                return;
+            }
+
+            if (lim.pref_torp_diameter == -1f) return;
+
+            // 收集所有可用的 torpedo_size
+            var list = new System.Collections.Generic.List<ComponentData>();
+            var gd = G.GameData;
+            var e = gd.components.GetEnumerator();
+            while (e.MoveNext())
+            {
+                var comp = e.Current.Value;
+                if (comp == null) continue;
+                if (comp.type != "torpedo_size") continue;
+                if (!ship.IsComponentAvailable(comp)) continue;
+                list.Add(comp);
+            }
+
+            int count = list.Count;
+            if (count == 0) return;
+
+            int n33 = (int)Mathf.Round(list.Count * 0.33f);
+            int n66 = (int)Mathf.Round(list.Count * 0.66f);
+
+            if (count == 1) DesiredTorpSize = list[0];
+            else
+            {
+                float pref = lim.pref_torp_diameter;
+                if (pref == 0f) DesiredTorpSize = list[0];
+                else if (pref == 1f)
+                {
+                    if (count == 2) DesiredTorpSize = list[0];
+                    if (count > 2) DesiredTorpSize = list[UnityEngine.Random.Range(0, Mathf.Max(1, n33))];
+                }
+                else if (pref == 2f)
+                {
+                    if (count > 2) DesiredTorpSize = list[UnityEngine.Random.Range(Mathf.Min(n33, count - 1), Mathf.Max(n33 + 1, n66))];
+                }
+                else if (pref == 3f)
+                {
+                    if (count == 2) DesiredTorpSize = list[1];
+                    if (count > 2) DesiredTorpSize = list[UnityEngine.Random.Range(Mathf.Min(n66, count - 1), count)];
+                }
+                else if (pref == 4f) DesiredTorpSize = list[list.Count - 1];
+
+                if (DesiredTorpSize == null) DesiredTorpSize = list[list.Count - 1];
+            }
+
+            if (DesiredTorpSize != null)
+            {
+                if (HotfixParams.ShipGenLimits >= 2)
+                    HotfixLog.Info("[SMS.1.SHIPGEN] torp size preference='" + lim.pref_torp_diameter
+                                   + "' chose " + DesiredTorpSize.name);
+                ship.InstallComponent(DesiredTorpSize, true);
+            }
+        }
+
         /// <summary>按 PartData.name 索引的限制表（ParsePartLimitData 时填充）。</summary>
         public static System.Collections.Generic.Dictionary<string, PartLimits> PartLimitData
             = new System.Collections.Generic.Dictionary<string, PartLimits>();
