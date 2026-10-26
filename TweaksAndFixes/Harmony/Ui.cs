@@ -2264,6 +2264,22 @@ namespace TweaksAndFixes
             Patch_SceneManagerPreview.ConfigureForPreview(true);
         }
 
+
+        // ★ [SMS.1.SCENE] 舰船预览图生成期间切换"预览模式"（移植自 Beta6 Patch_Ui）
+        [HarmonyPrefix]
+        [HarmonyPatch(nameof(Ui.GetShipPreviewTexGeneric))]
+        internal static void Prefix_ShipPreviewScene(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(false);
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(Ui.GetShipPreviewTexGeneric))]
+        internal static void Postfix_ShipPreviewScene(Ui __instance)
+        {
+            Patch_SceneManagerPreview.ConfigureForPreview(true);
+        }
+
         // ########## PART PREVIEW CACHING ########## //
 
         public static Dictionary<string, Texture2D> PartPreviewCache = new Dictionary<string, Texture2D>();
@@ -2363,6 +2379,8 @@ namespace TweaksAndFixes
         [HarmonyPrefix]
         internal static bool Prefix_GetPartPreviewTex(Ui __instance, PartData part, Ship ship, ref Texture2D __result)
         {
+            Patch_SceneManagerPreview.ConfigureForPreview(false);   // 部件预览：切到预览光照
+
             if (Config.Param("taf_part_previews_enable_caching", 1) != 1)
             {
                 return true;
@@ -2401,6 +2419,8 @@ namespace TweaksAndFixes
         [HarmonyPostfix]
         internal static void Postfix_GetPartPreviewTex(Ui __instance, PartData part, Ship ship, ref Texture2D __result)
         {
+            Patch_SceneManagerPreview.ConfigureForPreview(true);    // 部件预览结束：恢复
+
             if (Config.Param("taf_part_previews_enable_caching", 1) != 1)
             {
                 return;
