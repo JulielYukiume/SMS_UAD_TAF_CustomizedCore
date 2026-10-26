@@ -46,7 +46,19 @@ namespace TweaksAndFixes
                 foreach (var m in AccessTools.GetDeclaredMethods(typeof(Part)))
                 {
                     if (m.Name != "CanPlace") continue;
-                    if (m.GetParameters().Length == 3) return m;
+                    if (m.GetParameters().Length == 3)
+                    {
+                        try
+                        {
+                            var ps = m.GetParameters();
+                            HotfixLog.Info("[SMS.1.SHIPGEN] hooking Part.CanPlace("
+                                + ps[0].ParameterType.Name + ", "
+                                + ps[1].ParameterType.Name + ", "
+                                + ps[2].ParameterType.Name + ")");
+                        }
+                        catch { }
+                        return m;
+                    }
                 }
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] CanPlace lookup: " + e.Message); }
@@ -60,8 +72,15 @@ namespace TweaksAndFixes
                 if (!ShipGenWiring.Enabled()) return true;
                 if (!ShipGenWiring.Autodesign()) return true;
 
-                __result = Modules.ShipGen.CanAdd(__instance, ref denyReason);
-                return false;
+                // ★ 关键修正：只有**我们拒绝**时才跳过原版；
+                //   允许时返回 true 让原版继续做碰撞/放置检查，
+                //   否则会绕过游戏的碰撞判定（实测：三个烟囱重叠在一起）。
+                if (!Modules.ShipGen.CanAdd(__instance, ref denyReason))
+                {
+                    __result = false;
+                    return false;
+                }
+                return true;
             }
             catch (Exception e)
             {
@@ -88,7 +107,15 @@ namespace TweaksAndFixes
                 if (!ShipGenWiring.Enabled()) return true;
                 if (!ShipGenWiring.Autodesign()) return true;
 
-                return Modules.ShipGen.PartAvailible(ship, part, ref __result);
+                bool allowed = true;
+                bool ret = Modules.ShipGen.PartAvailible(ship, part, ref allowed);
+                // 只有"我们明确不允许"时才短路；其余交回原版判定
+                if (ret == false || allowed == false)
+                {
+                    __result = false;
+                    return false;
+                }
+                return true;
             }
             catch (Exception e)
             {
