@@ -365,75 +365,85 @@ namespace TweaksAndFixes
             {
                 var propContainer = Util.FindOrCreate(h.gameObject, "DeckProps");
 
-                Melon<TweaksAndFixes>.Logger.Msg($"  Settup props");
+                Melon<TweaksAndFixes>.Logger.Msg("  Settup props");
 
                 var template = Util.AttachInst(s.gameObject, "DeckProp", Vector3.zero, new());
                 var props = template.GetChild("Choices").GetChildren()[0].GetChildren();
                 float separation = 5 + 4 * (100 - UiM.TAF_Settings.settings.deckPropCoverage) / 100f;
-                Bounds area = new(s.deckBounds.center, new Vector3((s.deckBounds.size.x - separation / 4f) / 2f, s.deckBounds.size.y, s.deckBounds.size.z));
-                var pts = PoissonDisc.Generate(area, separation);
-
-                Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] detail: props=" + props.Count
-                    + " deckBounds=" + s.deckBounds.size + " area.size=" + area.size
-                    + " sep=" + separation.ToString("0.##") + " pts=" + pts.Count
-                    + " decks=" + s.decks.Count);
 
                 if (PropCache.Count == 0)
                     foreach (var prop in props)
                         PropCache.Add(prop.name, new());
 
                 foreach (var child in propContainer.GetChildren())
-                {
                     PropCache[child.name.Replace("(Clone)", "")].Push(child);
-                }
-            
-                Melon<TweaksAndFixes>.Logger.Msg($"  Cache: {PropCache.Count}");
 
-                foreach (var p in pts)
+                // ★★★ [SMS.1.PROP] 2026-10-26 重写散布算法（按用户描述的规则）：
+                //   1) 读取所有 deckplace 的位置/旋转/尺寸；
+                //   2) 跳过绕 X 轴有轻微旋转的甲板（舰艏上翘段，不适合摆放）；
+                //   3) 按高度分组（同组近似同一水平面，容差 HeightTol）；
+                //   4) 每组取总包围盒，在盒内按 Poisson 均匀布点；
+                //   5) 逐点实例化小物件并放到对应高度。
+                const float HeightTol = 0.75f;
+
+                var groupBounds = new System.Collections.Generic.List<Bounds>();
+                int deckTotal = 0, skippedRot = 0;
+
+                var eDecks = s.decks.GetEnumerator();
+                while (eDecks.MoveNext())
                 {
-                    GameObject prop;
-                    BoxCollider deck;
-                    int RandomIndex = UnityEngine.Random.Range(0, props.Count);
+                    var col = eDecks.Current.Key;
+                    if (col == null) continue;
+                    deckTotal++;
 
+                    var tr = col.transform;
+
+                    // 跳过带 X 轴旋转的甲板（一般对应舰艏上翘部分）
+                    float rotX = Mathf.DeltaAngle(0f, tr.eulerAngles.x);
+                    if (Mathf.Abs(rotX) > 2f) { skippedRot++; continue; }
+
+                    Bounds b = col.bounds;   // 世界空间 AABB
+
+                    int gi = -1;
+                    for (int i = 0; i < groupBounds.Count; i++)
                     {
-                        Vector3 rawPos;
-                        deck = ResolveDeck(s, h.transform, p, out rawPos);
-
-                        if (deck == null)
-                            continue;
-
-                        if (PropCache[props[RandomIndex].name].Count > 0)
-                        {
-                            prop = PropCache[props[RandomIndex].name].Pop();
-                        }
-                        else
-                            prop = GameObject.Instantiate(props[RandomIndex], propContainer.transform, false);
-
-                        prop.transform.localPosition = rawPos + new Vector3(0, deck.transform.position.y, 0);
-                        Util.SetLayer(prop, UnityEngine.LayerMask.NameToLayer("Decor"));
+                        if (Mathf.Abs(groupBounds[i].center.y - b.center.y) <= HeightTol) { gi = i; break; }
                     }
 
+                    if (gi < 0) groupBounds.Add(b);
+                    else { var g = groupBounds[gi]; g.Encapsulate(b); groupBounds[gi] = g; }
+                }
+
+                int placed = 0;
+
+                foreach (var g in groupBounds)
+                {
+                    // PoissonDisc 的 size 是半宽/半深语义 ⇒ 传一半
+                    var half = new Bounds(g.center, new Vector3(g.size.x * 0.5f, g.size.y, g.size.z * 0.5f));
+                    var pts = PoissonDisc.Generate(half, separation);
+
+                    foreach (var p in pts)
                     {
-                        Vector3 rawPos;
-                        var deckR = ResolveDeck(s, h.transform, new Vector2(-p.x, p.y), out rawPos);
-                        if (deckR == null)
-                            continue;
-                        prop = null;
-                        _ = deckR;
+                        int ridx = UnityEngine.Random.Range(0, props.Count);
+                        GameObject prop;
 
-                        if (PropCache[props[RandomIndex].name].Count > 0)
-                        {
-                            prop = PropCache[props[RandomIndex].name].Pop();
-                        }
+                        if (PropCache[props[ridx].name].Count > 0)
+                            prop = PropCache[props[ridx].name].Pop();
                         else
-                            prop = GameObject.Instantiate(props[RandomIndex], propContainer.transform, false);
+                            prop = GameObject.Instantiate(props[ridx], propContainer.transform, false);
 
-                        prop.transform.localPosition = rawPos + new Vector3(0, deck.transform.position.y, 0);
+                        Vector3 world = new Vector3(p.x, g.center.y, p.y);
+                        prop.transform.localPosition = propContainer.transform.InverseTransformPoint(world);
                         Util.SetLayer(prop, UnityEngine.LayerMask.NameToLayer("Decor"));
+
+                        placed++;
                     }
                 }
 
-                Melon<TweaksAndFixes>.Logger.Msg($"  Cache: {PropCache.Count}");
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] detail: decks=" + deckTotal
+                    + " skippedRot=" + skippedRot + " groups=" + groupBounds.Count
+                    + " sep=" + separation.ToString("0.##") + " placed=" + placed
+                    + " props=" + props.Count);
 
                 foreach (var bucket in PropCache)
                     while (bucket.Value.Count > 0)
