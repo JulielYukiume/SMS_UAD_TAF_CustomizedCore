@@ -98,11 +98,22 @@ namespace TweaksAndFixes
                 // 把 oceanGraphics.csv 的三档参数应用到真实海面 FFT
                 try { global::TweaksAndFixes.OceanGraphicsData.ApplyAll(); } catch { }
 
-                // 静态海面（可选）
+                // ★ [SMS.1.OCEAN] 静态海面由**设置菜单的 Ocean Type** 驱动（与 duke 的设计一致，
+                //   不再依赖外部 config 参数）：
+                //     oceanType = 0 → 默认（原版 FFT 海面）
+                //     oceanType = 1 → 静态海面（duke 的低质方案，用 TAFData 贴图）
+                //     oceanType = 2 → 无海面（浮空/宇宙海战风格）
                 try
                 {
-                    if (global::TAFHotfixBatch1.HotfixParams.StaticOcean)
+                    int oceanType = 0;
+                    try { oceanType = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+
+                    if (oceanType == 1)
                         Patch_SceneManagerPreview.CreateStaticOcean();
+                    else
+                        Patch_SceneManagerPreview.SetOceanMode(oceanType);
+
+                    HotfixLog.Info("[SMS.1.OCEAN] oceanType=" + oceanType);
                 }
                 catch { }
 

@@ -696,6 +696,31 @@ internal static class Patch_SceneManagerPreview
         ///   · 材质有哪些贴图属性（_MainTex / _BumpMap ...）
         /// 开关：`static_ocean_probe`（默认 1，只读）
         /// </summary>
+
+        /// <summary>
+        /// [SMS.1.OCEAN] 按 Ocean Type 设置海面模式：
+        ///   0 = 默认（原版 FFT 海面，若之前建了静态海面则销毁）
+        ///   1 = 静态海面（由 CreateStaticOcean 负责）
+        ///   2 = 无海面（隐藏静态海面；原版海面本身在构造器里已 scale=0 的占位对象不影响）
+        /// </summary>
+        internal static void SetOceanMode(int mode)
+        {
+            try
+            {
+                if (mode == 0 || mode == 2)
+                {
+                    if (StaticOcean != null)
+                    {
+                        UnityEngine.Object.Destroy(StaticOcean);
+                        StaticOcean = null;
+                        StaticOceanMat = null;
+                    }
+                    StaticOceanEnabled = false;
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] SetOceanMode: " + e.Message); }
+        }
+
         internal static void ProbeOcean()
         {
             try
