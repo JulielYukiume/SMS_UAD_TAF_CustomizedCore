@@ -295,7 +295,10 @@ namespace TweaksAndFixes
                 initedTotalDeckBounds = true;
             }
 
-            Melon<TweaksAndFixes>.Logger.Msg($"  Found {s.decks.Count} decks");
+            // ★★★ [SMS.1.PROP] 关键修复：把累计的甲板包围盒写回 `s.deckBounds`。
+            //   我们的 RefreshHull 移植漏了这一步（Beta6 用 __instance.deckBounds 计算布点区域），
+            //   导致 s.deckBounds 是 default(size=0) ⇒ PoissonDisc 生成 0 个点 ⇒ DeckProps 永远为空。
+            Melon<TweaksAndFixes>.Logger.Msg($"  Found {s.decks.Count} decks (deckBounds={s.deckBounds.size})");
 
             s.decksFake = Util.FindCustomChildren(h, new System.Func<GameObject, bool>((GameObject go) => {
                 return go.name == "DeckFake";
@@ -369,6 +372,11 @@ namespace TweaksAndFixes
                 float separation = 5 + 4 * (100 - UiM.TAF_Settings.settings.deckPropCoverage) / 100f;
                 Bounds area = new(s.deckBounds.center, new Vector3((s.deckBounds.size.x - separation / 4f) / 2f, s.deckBounds.size.y, s.deckBounds.size.z));
                 var pts = PoissonDisc.Generate(area, separation);
+
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.PROP] detail: props=" + props.Count
+                    + " deckBounds=" + s.deckBounds.size + " area.size=" + area.size
+                    + " sep=" + separation.ToString("0.##") + " pts=" + pts.Count
+                    + " decks=" + s.decks.Count);
 
                 if (PropCache.Count == 0)
                     foreach (var prop in props)
