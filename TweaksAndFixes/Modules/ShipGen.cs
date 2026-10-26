@@ -409,6 +409,181 @@ namespace TweaksAndFixes.Modules
             return "?";
         }
 
+
+        // ======================================================================
+        //  生成后夹取（移植 Beta6 Patch_ShipGenRandom.ClampShipStats）
+        //  数据来源：shipTypes.csv / parts.csv 的 `shipgen_clamp(stat:number; ...)`
+        //  支持 stat：speed_min / speed_max / beam_min / beam_max / draught_min / draught_max
+        // ======================================================================
+
+        internal static float LastSpeed = -1f;
+        internal static float LastBeam = -1f;
+        internal static float LastDraught = -1f;
+
+        private static void ParseClampTokens(Il2CppSystem.Collections.Generic.List<string> tokens,
+                                             string sourceFile, string idName,
+                                             float stMin, float stMax,
+                                             float bMin, float bMax,
+                                             float dMin, float dMax,
+                                             ref float sMin, ref float sMax,
+                                             ref float beamMin, ref float beamMax,
+                                             ref float draughtMin, ref float draughtMax,
+                                             ref bool any)
+        {
+            if (tokens == null) return;
+            var e = tokens.GetEnumerator();
+            while (e.MoveNext())
+            {
+                string token = e.Current;
+                if (string.IsNullOrEmpty(token)) continue;
+
+                var kv = token.Split(':');
+                if (kv.Length != 2)
+                {
+                    HotfixLog.Warn("[SMS.1.SHIPGEN] Invalid '" + sourceFile + "' 'shipgen_clamp' param: '"
+                                   + token + "' for ID '" + idName + "'. Must be 'shipgen_clamp(stat:number; ...)'.");
+                    continue;
+                }
+
+                if (!ModUtils.TryParse(kv[1].Trim(), out float v))
+                {
+                    HotfixLog.Warn("[SMS.1.SHIPGEN] Invalid '" + sourceFile + "' 'shipgen_clamp' param: '"
+                                   + token + "' for ID '" + idName + "'. Must be valid number.");
+                    continue;
+                }
+
+                switch (kv[0].Trim())
+                {
+                    case "speed_min": sMin = Mathf.Clamp(v, stMin, stMax); break;
+                    case "speed_max": sMax = Mathf.Clamp(v, stMin, stMax); break;
+                    case "beam_min": beamMin = Mathf.Clamp(v, bMin, bMax); break;
+                    case "beam_max": beamMax = Mathf.Clamp(v, bMin, bMax); break;
+                    case "draught_min": draughtMin = Mathf.Clamp(v, dMin, dMax); break;
+                    case "draught_max": draughtMax = Mathf.Clamp(v, dMin, dMax); break;
+                    default:
+                        HotfixLog.Warn("[SMS.1.SHIPGEN] Invalid '" + sourceFile + "' 'shipgen_clamp' param: '"
+                                       + token + "' for ID '" + idName + "'. Unsupported stat.");
+                        continue;
+                }
+
+                any = true;
+            }
+        }
+
+        /// <summary>
+        /// 把 AI 生成出来的速度/船宽/吃水夹回 `shipgen_clamp` 区间。
+        ///
+        /// `force=true` 时无条件重新夹取（用于"生成结束"这种一次性调用）；
+        /// `force=false` 时只在数值与上次记录**不同**（即 AI 改过）时才夹取 —— 与 Beta6 语义一致。
+        /// </summary>
+        public static void ClampShipStats(Ship ship, bool force = false)
+        {
+            try
+            {
+                if (ship == null || ship.hull == null || ship.hull.data == null) return;
+
+                var data = ship.hull.data;
+                var st = ship.shipType;
+                if (st == null) return;
+
+                float stMin = st.speedMin, stMax = st.speedMax;
+                float bMin = data.beamMin, bMax = data.beamMax;
+                float dMin = data.draughtMin, dMax = data.draughtMax;
+
+                float sMin = stMin, sMax = stMax;
+                float beamMin = bMin, beamMax = bMax;
+                float draughtMin = dMin, draughtMax = dMax;
+                bool any = false;
+
+                // ① 舰种级 shipgen_clamp
+                try
+                {
+                    if (st.paramx != null && st.paramx.ContainsKey("shipgen_clamp"))
+                        ParseClampTokens(st.paramx["shipgen_clamp"], "shipTypes.csv", st.name,
+                                         stMin, stMax, bMin, bMax, dMin, dMax,
+                                         ref sMin, ref sMax, ref beamMin, ref beamMax,
+                                         ref draughtMin, ref draughtMax, ref any);
+                }
+                catch { }
+
+                // ② 船体级 shipgen_clamp（优先级更高：后解析覆盖前者）
+                try
+                {
+                    if (data.paramx != null && data.paramx.ContainsKey("shipgen_clamp"))
+                        ParseClampTokens(data.paramx["shipgen_clamp"], "parts.csv", data.name,
+                                         stMin, stMax, bMin, bMax, dMin, dMax,
+                                         ref sMin, ref sMax, ref beamMin, ref beamMax,
+                                         ref draughtMin, ref draughtMax, ref any);
+                }
+                catch { }
+
+                if (!any) return;
+
+                // 保证 min <= max
+                if (sMin > sMax) { var tmp = sMin; sMin = sMax; sMax = tmp; }
+                if (beamMin > beamMax) { var tmp = beamMin; beamMin = beamMax; beamMax = tmp; }
+                if (draughtMin > draughtMax) { var tmp = draughtMin; draughtMin = draughtMax; draughtMax = tmp; }
+
+                // ---- 速度（内部单位 m/s，配置里是节）----
+                try
+                {
+                    float cur = ship.speedMax;                      // m/s
+                    float clamped = Mathf.Clamp(cur, sMin * 0.5144444f, sMax * 0.5144444f);
+                    if (force || Mathf.Abs(clamped - cur) > 0.0001f)
+                    {
+                        clamped = ModUtils.roundToInc(clamped, 0.1f);
+                        ship.SetSpeedMax(clamped);
+                        LastSpeed = ship.speedMax;
+                    }
+                }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] clamp speed: " + e.Message); }
+
+                // ---- 船宽（百分比偏移，按比例重映射）----
+                try
+                {
+                    if (force || Mathf.Abs(LastBeam - ship.beam) > 0.0001f)
+                    {
+                        float v = Reratio(ship.beam, bMin, bMax, beamMin, beamMax);
+                        ship.SetBeam(ModUtils.roundToInc(v, 0.1f), false);
+                        LastBeam = ship.beam;
+                    }
+                }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] clamp beam: " + e.Message); }
+
+                // ---- 吃水 ----
+                try
+                {
+                    if (force || Mathf.Abs(LastDraught - ship.draught) > 0.0001f)
+                    {
+                        float v = Reratio(ship.draught, dMin, dMax, draughtMin, draughtMax);
+                        ship.SetDraught(ModUtils.roundToInc(v, 0.1f), false);
+                        LastDraught = ship.draught;
+                    }
+                }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] clamp draught: " + e.Message); }
+
+                if (HotfixParams.ShipGenLimits >= 2)
+                {
+                    HotfixLog.Info("[SMS.1.SHIPGEN] clamp applied: '" + SafeName(ship) + "'"
+                        + " speed=" + ship.speedMax.ToString("0.##")
+                        + " beam=" + ship.beam.ToString("0.##")
+                        + " draught=" + ship.draught.ToString("0.##")
+                        + "  (ranges speed " + sMin.ToString("0.#") + "-" + sMax.ToString("0.#")
+                        + ", beam " + beamMin.ToString("0.#") + "-" + beamMax.ToString("0.#")
+                        + ", draught " + draughtMin.ToString("0.#") + "-" + draughtMax.ToString("0.#") + ")");
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.SHIPGEN] ClampShipStats: " + e.Message); }
+        }
+
+        /// <summary>线性重映射（Beta6 的 Reratio 同款）。</summary>
+        public static float Reratio(float v, float a1, float a2, float b1, float b2)
+        {
+            if (b1 == b2) return b1;
+            if (a1 == a2) return a1;
+            return b1 + (b2 - b1) * ((v - a1) / (a2 - a1));
+        }
+
         /// <summary>按 PartData.name 索引的限制表（ParsePartLimitData 时填充）。</summary>
         public static System.Collections.Generic.Dictionary<string, PartLimits> PartLimitData
             = new System.Collections.Generic.Dictionary<string, PartLimits>();

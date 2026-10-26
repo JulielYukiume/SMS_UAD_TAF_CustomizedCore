@@ -1410,7 +1410,12 @@ namespace TweaksAndFixes
                     var routine = Patch_Ship._GenerateRandomShipRoutine;
                     var ship = routine != null ? routine.__4__this : null;
                     if (ship != null)
+                    {
+                        // ① 先把速度/船宽/吃水夹回 shipgen_clamp 区间（force：生成结束必须夹一次）
+                        global::TweaksAndFixes.Modules.ShipGen.ClampShipStats(ship, true);
+                        // ② 再做 shipgen_limit 审计（仅日志）
                         global::TweaksAndFixes.Modules.ShipGen.ValidateGenerated(ship);
+                    }
                 }
                 catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.1.SHIPGEN] audit: " + e.Message); }
             }
