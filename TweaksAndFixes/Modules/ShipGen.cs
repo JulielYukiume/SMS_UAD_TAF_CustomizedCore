@@ -848,6 +848,23 @@ namespace TweaksAndFixes.Modules
         ///   全部拒掉 ⇒ 表现为"永远放不下主炮"。
         /// 所以这里改为：先用 limit 里声明的口径区间归类，区间无法判断时才回落到 IsMainCal。
         /// </summary>
+
+        private static int _diagCount;
+
+        /// <summary>[SMS.1.SHIPGEN] shipgen_limits&gt;=2 时的判定诊断（限流 300 条）。</summary>
+        internal static void Diag(string msg)
+        {
+            try
+            {
+                if (HotfixParams.ShipGenLimits < 2) return;
+                if (_diagCount++ > 300) return;
+                HotfixLog.Info("[SMS.1.SHIPGEN][diag] " + msg);
+            }
+            catch { }
+        }
+
+        internal static void ResetDiag() { _diagCount = 0; }
+
         private static bool IsMainByLimits(PartData d, Ship ship, PartLimits lim)
         {
             try
@@ -902,7 +919,17 @@ namespace TweaksAndFixes.Modules
 
                 float cal = data.GetCaliberInch(ship);
 
-                if (IsMainByLimits(data, ship, lim))
+                bool __isMain = IsMainByLimits(data, ship, lim);
+                Diag("IsGunAvailible '" + data.name + "' cal=" + cal.ToString("0.##")
+                     + " IsMainCal=" + ship.IsMainCal(data) + " IsMainByLimits=" + __isMain
+                     + " | main: cal " + lim.min_main_gun_cal.ToString("0.#") + "~" + lim.max_main_gun_cal.ToString("0.#")
+                     + " barrels " + lim.min_main_gun_barrels.ToString("0.#") + "~" + lim.max_main_gun_barrels.ToString("0.#")
+                     + " count<=" + lim.max_main_gun_count.ToString("0.#")
+                     + " | sec: cal " + lim.min_sec_gun_cal.ToString("0.#") + "~" + lim.max_sec_gun_cal.ToString("0.#")
+                     + " barrels " + lim.min_sec_gun_barrels.ToString("0.#") + "~" + lim.max_sec_gun_barrels.ToString("0.#")
+                     + " count<=" + lim.max_sec_gun_count.ToString("0.#"));
+
+                if (__isMain)
                 {
                     if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
@@ -999,11 +1026,11 @@ namespace TweaksAndFixes.Modules
                 {
                     if ((lim.max_main_gun_cal > 0f && cal > lim.max_main_gun_cal)
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
-                    { __result = false; return false; }
+                    { Diag("  DENY main cal"); __result = false; return false; }
 
                     if ((lim.max_main_gun_barrels > 0f && data.barrels > lim.max_main_gun_barrels)
                         || (lim.min_main_gun_barrels > 0f && data.barrels < lim.min_main_gun_barrels))
-                    { __result = false; return false; }
+                    { Diag("  DENY main barrels=" + data.barrels); __result = false; return false; }
 
                     if (lim.max_main_gun_count > 0f && ship.mainGuns != null
                         && ship.mainGuns.Count > lim.max_main_gun_count)
