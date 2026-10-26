@@ -849,6 +849,49 @@ namespace TweaksAndFixes.Modules
         /// 所以这里改为：先用 limit 里声明的口径区间归类，区间无法判断时才回落到 IsMainCal。
         /// </summary>
 
+
+        /// <summary>船上当前主炮总管数。</summary>
+        private static int TotalMainBarrels(Ship ship)
+        {
+            int n = 0;
+            try
+            {
+                if (ship == null || ship.mainGuns == null) return 0;
+                var e = ship.mainGuns.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    var cur = e.Current;
+                    if (cur == null || cur.data == null) continue;
+                    if (cur.data.isBarbette) continue;
+                    n += cur.data.barrels;
+                }
+            }
+            catch { }
+            return n;
+        }
+
+        /// <summary>船上当前副炮总管数（非主炮、非 casemate）。</summary>
+        private static int TotalSecBarrels(Ship ship)
+        {
+            int n = 0;
+            try
+            {
+                if (ship == null || ship.parts == null) return 0;
+                var e = ship.parts.GetEnumerator();
+                while (e.MoveNext())
+                {
+                    var cur = e.Current;
+                    if (cur == null || cur.data == null) continue;
+                    if (!cur.data.isGun) continue;
+                    if (ship.IsMainCal(cur.data)) continue;
+                    if (Ship.IsCasemateGun(cur.data)) continue;
+                    n += cur.data.barrels;
+                }
+            }
+            catch { }
+            return n;
+        }
+
         private static int _diagCount;
 
         /// <summary>[SMS.1.SHIPGEN] shipgen_limits&gt;=2 时的判定诊断（限流 300 条）。</summary>
@@ -936,6 +979,16 @@ namespace TweaksAndFixes.Modules
                     {
                         denyReason = "shipgen_limit: main gun cal range";
                         return false;
+                    }
+
+                    if (lim.max_main_gun_barrels > 0f)
+                    {
+                        int tb = TotalMainBarrels(ship) + data.barrels;
+                        if (tb > lim.max_main_gun_barrels)
+                        {
+                            denyReason = "shipgen_limit: main gun barrels range";
+                            return false;
+                        }
                     }
 
                     if (lim.max_main_gun_count > 0f && ship.mainGuns != null)
@@ -1028,9 +1081,11 @@ namespace TweaksAndFixes.Modules
                         || (lim.min_main_gun_cal > 0f && cal < lim.min_main_gun_cal))
                     { Diag("  DENY main cal"); __result = false; return false; }
 
-                    if ((lim.max_main_gun_barrels > 0f && data.barrels > lim.max_main_gun_barrels)
-                        || (lim.min_main_gun_barrels > 0f && data.barrels < lim.min_main_gun_barrels))
-                    { Diag("  DENY main barrels=" + data.barrels); __result = false; return false; }
+                    // ★ 管数是**全舰总管数**语义（SMS 的 min_main_gun_barrels:8 指整舰至少 8 管），
+                    //   且候选过滤只应查上限；下限是"最终设计"的目标，不该拒掉单个候选。
+                    int totalMainBarrels = TotalMainBarrels(ship) + data.barrels;
+                    if (lim.max_main_gun_barrels > 0f && totalMainBarrels > lim.max_main_gun_barrels)
+                    { Diag("  DENY main barrels total=" + totalMainBarrels + " max=" + lim.max_main_gun_barrels); __result = false; return false; }
 
                     if (lim.max_main_gun_count > 0f && ship.mainGuns != null
                         && ship.mainGuns.Count > lim.max_main_gun_count)
