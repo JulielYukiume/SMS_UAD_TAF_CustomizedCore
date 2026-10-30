@@ -57,7 +57,7 @@ namespace TweaksAndFixes
             else
             {
                 Melon<TweaksAndFixes>.Logger.Msg($"    Custom ordering");
-                var data = HullData._Data[hModelName].sectioningParsed;
+                var hullData = HullData._Data[hModelName];
 
                 // Remove all, since order can be anything
                 while (h.middles.Count > 0)
@@ -67,17 +67,31 @@ namespace TweaksAndFixes
                     GameObject.DestroyImmediate(section);
                 }
 
-                if (middleCount >= data.Count)
+                // ★ 与 duke 对齐（docs/75）：先查 hullData.csv 的全局段序（按 middleCount 索引），
+                //   再查 parts.csv 的按部件段序（sect_<n> → sectioningParsedPart）。
+                List<int> order;
+
+                if (middleCount < hullData.sectioningParsed.Count)
                 {
-                    // Melon<TweaksAndFixes>.Logger.Error(
-                    //     $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) has {data.Count} section lists defined, " +
-                    //     $"but #{middleCount} (0-indexed) was requested!"
-                    // );
-                    InitSectionsCyclical(s, middleCount);
-                    return;
+                    order = hullData.sectioningParsed[middleCount];
                 }
-                
-                var order = data[middleCount];
+                else
+                {
+                    string partName = h.data.name;
+
+                    if (!hullData.sectioningParsedPart.ContainsKey(partName) ||
+                        !hullData.sectioningParsedPart[partName].ContainsKey(middleCount))
+                    {
+                        // Melon<TweaksAndFixes>.Logger.Error(
+                        //     $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) has {data.Count} section lists defined, " +
+                        //     $"but #{middleCount} (0-indexed) was requested!"
+                        // );
+                        InitSectionsCyclical(s, middleCount);
+                        return;
+                    }
+
+                    order = hullData.sectioningParsedPart[partName][middleCount];
+                }
 
                 // Force default ordering for this section count
                 if (order.Count == 1 && order[0] == -1)

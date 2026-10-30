@@ -14,6 +14,12 @@ namespace TweaksAndFixes
         [Serializer.Field] public float stabilityForward = 0;
         [Serializer.Field] public string sectioning = string.Empty;
         public List<List<int>> sectioningParsed = new();
+
+        /// <summary>
+        /// 按**部件**的自定义段序：partName -> (middleCount -> 段索引列表)。
+        /// 来源：parts.csv 里的 `sect_<n>(...)` 参数（duke 的 `sectioningParsedPart`）。
+        /// </summary>
+        public Dictionary<string, Dictionary<int, List<int>>> sectioningParsedPart = new();
         public bool useDefaultSectioning = true;
 
         public void PostProcess()
@@ -113,19 +119,24 @@ namespace TweaksAndFixes
 
                     var entry = _Data[d.Value.model];
 
-                    if (entry.sectioningParsed.Count > idx)
-                    {
-                        entry.sectioningParsed[idx] = new();
-                    }
-                    else
-                    {
-                        while (entry.sectioningParsed.Count < idx)
-                            entry.sectioningParsed.Add(new() { -1 });
+                    // ★ 与 duke 对齐（docs/75）：`sect_*` 参数属于**按部件**的自定义段序，
+                    //   应写入 sectioningParsedPart（partName -> middleCount -> 段索引列表），
+                    //   而不是塞进 sectioningParsed（后者是 hullData.csv `sectioning` 列专用，
+                    //   按 middleCount 索引全局段序）。
+                    //
+                    //   同时用"部件名"和"参数键"两个 key 存同一份数据：
+                    //   · 部件名：更新时按 `hull.data.name` 查询（duke 的 UpdateSections 用法）
+                    //   · 参数键：兼容按 `sect_<n>` 查询的写法
+                    string partName = d.Value.name;
+                    if (string.IsNullOrEmpty(partName))
+                        partName = d.Value.model;
 
-                        entry.sectioningParsed.Add(new());
-                    }
+                    if (!entry.sectioningParsedPart.ContainsKey(partName))
+                        entry.sectioningParsedPart[partName] = new Dictionary<int, List<int>>();
+                    if (!entry.sectioningParsedPart.ContainsKey(p.Key))
+                        entry.sectioningParsedPart[p.Key] = new Dictionary<int, List<int>>();
 
-                    List<int> parsedList = entry.sectioningParsed[idx];
+                    List<int> parsedList = new();
 
                     foreach (var index in p.Value)
                     {
@@ -140,6 +151,9 @@ namespace TweaksAndFixes
                         parsedList.Add(parsed);
                         entry.useDefaultSectioning = false;
                     }
+
+                    entry.sectioningParsedPart[partName][idx] = parsedList;
+                    entry.sectioningParsedPart[p.Key][idx] = parsedList;
                 }
             }
 
