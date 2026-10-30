@@ -67,6 +67,8 @@ namespace TAFHotfixBatch1
         internal static int ShipGenLimits = 0;
         /// <summary>[SMS.1.OCEAN] 静态海面可行性探针（只读）。</summary>
         internal static bool StaticOceanProbe = true;
+        /// <summary>[SMS.1.DECAL] 命中贴花按口径缩放（duke 的弹孔修复）。</summary>
+        internal static bool DecalSize = true;
         /// <summary>[SMS.1.OCEAN] 启用静态海面（duke 的低质海面方案，需要 TAFData 贴图）。</summary>
         internal static bool StaticOcean = false;
         /// <summary>
@@ -233,6 +235,7 @@ namespace TAFHotfixBatch1
             HullDataApply = GetBool("hull_data_apply", HullDataApply);
             ShipGenLimits = GetInt("shipgen_limits", ShipGenLimits);
             StaticOceanProbe = GetBool("static_ocean_probe", StaticOceanProbe);
+            DecalSize = GetBool("decal_size", DecalSize);
             StaticOcean = GetBool("static_ocean", StaticOcean);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
