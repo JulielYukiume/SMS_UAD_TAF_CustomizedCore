@@ -10,6 +10,9 @@ using TweaksAndFixes.Harmony;
 using static TweaksAndFixes.UiM;
 
 #pragma warning disable CS8625
+using System;
+using System.Collections.Generic;
+using TAFHotfixBatch1;
 
 namespace TweaksAndFixes
 {
@@ -616,6 +619,9 @@ namespace TweaksAndFixes
                 __instance.floatUpsCont.transform.localPosition = new Vector3(0, 120, 0);
             }
 
+            // [SMS.2.WAKE] 战斗中的船只可能不经过 RefreshHull，这里补注册（幂等）
+            try { ShipWakeHint.Register(__instance); } catch { }
+
             if (__instance.uiRangesCont == null) return;
             if (__instance.uiRangesCont.active == false) return;
 
@@ -985,17 +991,30 @@ namespace TweaksAndFixes
 
         public static void UpdateDeckClutter(Ship ship)
         {
+            // guard added: 冷启动/场景切换时 RefreshHull 可能处于半构造状态
+            try { if (ship == null || ship.hull == null) return; } catch { return; }
+            // ★ NRE 真因：部分船（无甲板装饰/早期加载阶段）**没有 "DeckProps" 子物体**，
+            //   GetChild 返回 null 后直接 SetActive → NullReferenceException，
+            //   发生在 RefreshHull 的 postfix 里，导致每船每次刷新都报一次。
+            GameObject deckProps = null;
+            try { deckProps = ship.hull.gameObject.GetChild("DeckProps"); } catch { }
+            if (deckProps == null)
+            {
+                global::TAFHotfixBatch1.HotfixLog.Dbg("[SMS.2.PROP] no DeckProps child on '" + (ship != null ? ship.vesselName : "?") + "'");
+                return;
+            }
+
             if (UiM.TAF_Settings.settings.deckPropCoverage == 0)
             {
-                ship.hull.gameObject.GetChild("DeckProps").SetActive(false);
+                deckProps.SetActive(false);
             }
             else
             {
-                ship.hull.gameObject.GetChild("DeckProps").SetActive(true);
+                deckProps.SetActive(true);
 
-                var props = ship.hull.gameObject.GetChild("DeckProps").GetChildren();
+                var props = deckProps.GetChildren();
 
-                // ★ [SMS.1.PROP] 健壮化：3.22 的新布点算法生成数量是**任意**的（不再是成对 + 镜像），
+                // ★ [SMS.2.PROP] 健壮化：3.22 的新布点算法生成数量是**任意**的（不再是成对 + 镜像），
                 //   旧实现按 `i += 2` 并访问 `props[i + 1]`，遇到奇数个会抛
                 //   ArgumentOutOfRangeException（2026-10-26 实测，异常会让整个装饰流程中断）。
                 //   这里改为逐项判定，但保留"每 2 个共享同一状态"的原有语义。
@@ -1820,4 +1839,768 @@ namespace TweaksAndFixes
             ship.TAFData().FromStore(sStore);
         }
     }
+
+    // ===================================================================
+    // 以下代码原本在 Harmony/HullDataApply.cs，2026-11-05 合并到本文件，
+    // 目的是与 duke 的 Harmony/Ship.cs 结构对齐（便于后续 diff / 上游合并）。
+    // ===================================================================
+
+    /// <summary>
+    /// [SMS.1.WL] Beta4 的 hullData 应用层 —— 移植 3.22 Beta #4 的提交 `4090d68`：
+    ///   · `waterline`：给"船体/分段在构造器里的 Y 位置"加偏移
+    ///   · `stabilityForward`：写入 `hull.hullInfo.stabilityForward`
+    ///
+    /// 为什么这段重要：
+    ///   Beta #4 的发布说明里写了 **"Fix miscolored fore/aft sections on some hulls in constructor"**，
+    ///   而同一提交（`4090d68`）正是引入 `hullData.csv` 的提交 —— 也就是说这句"色差修复"
+    ///   极可能就是 **waterline 垂直偏移** 让相邻分段不再共面（共面 ⇒ z-fighting/暗色带）。
+    ///
+    /// 之前我们只移植了 `HullData`（数据）与 `RefreshHull`（分段），**漏掉了这里的应用代码**，
+    /// 所以 `waterline` / `stabilityForward` 一直是"有数据但不生效"。
+    ///
+    /// 实现说明：
+    ///   原版补丁挂在 `Ship.__c__DisplayClass628_0._Update_b__6`（编译器生成的闭包方法），
+    ///   类名里的数字在不同版本会变，所以这里改为**运行时按方法名查找**：
+    ///   在 `Ship` 的所有嵌套类型里找名为 `<Update>b__6`、返回 `Vector3` 的方法再挂 Postfix。
+    /// </summary>
+    internal static class HullDataApply
+    {
+        internal static Ship UpdatingShip = null;
+
+        internal static void Install(HarmonyLib.Harmony harmony)
+        {
+            if (!HotfixParams.HullDataApply)
+            {
+                HotfixLog.Info("[SMS.1.WL] disabled");
+                return;
+            }
+
+            int installed = 0;
+
+            // ① Ship.Update 前缀：记录正在更新的船（供 ② 使用）
+            try
+            {
+                var mUpdate = AccessTools.Method(typeof(Ship), nameof(Ship.Update));
+                if (mUpdate != null)
+                {
+                    harmony.Patch(mUpdate, prefix: new HarmonyMethod(
+                        AccessTools.Method(typeof(HullDataApply), nameof(Prefix_Update))));
+                    installed++;
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.WL] Update: " + e.Message); }
+
+            // ② `<Update>b__6`（Vector3 返回）：加 waterline 偏移
+            try
+            {
+                MethodInfo target = null;
+                // Il2Cpp 的嵌套类型（编译器闭包 Ship.<>c__DisplayClassXXX）在代理类型上不可枚举，
+                // 因此改为扫描所有已加载类型，找返回 Vector3 的 "<Update>b__6"/"_Update_b__6"。
+                try
+                {
+                    foreach (var t in AccessTools.AllTypes())
+                    {
+                        if (t == null) continue;
+                        string fn = t.FullName ?? t.Name ?? "";
+                        if (fn.IndexOf("Ship", System.StringComparison.Ordinal) < 0) continue;
+                        if (fn.IndexOf("DisplayClass", System.StringComparison.Ordinal) < 0) continue;
+
+                        foreach (var mi in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                                                        | BindingFlags.Instance | BindingFlags.Static))
+                        {
+                            if (mi == null) continue;
+                            if (mi.ReturnType != typeof(Vector3)) continue;
+                            string mn = mi.Name ?? "";
+                            if (mn.IndexOf("_Update_b__6", System.StringComparison.Ordinal) >= 0
+                                || mn.IndexOf("Update>b__6", System.StringComparison.Ordinal) >= 0)
+                            {
+                                target = mi;
+                                break;
+                            }
+                        }
+                        if (target != null) break;
+                    }
+                }
+                catch (Exception e) { HotfixLog.Warn("[SMS.1.WL] b__6 scan: " + e.Message); }
+
+
+                if (target != null)
+                {
+                    harmony.Patch(target, postfix: new HarmonyMethod(
+                        AccessTools.Method(typeof(HullDataApply), nameof(Postfix_UpdateB6))));
+                    installed++;
+                    HotfixLog.Info("[SMS.1.WL] patched " + target.DeclaringType?.Name + "." + target.Name);
+                }
+                else
+                {
+                    // ★ 显式 Error：这是"静默失效"的关键点 —— 找不到闭包方法时
+                    //   waterline 偏移完全不会生效，而游戏不会给出任何提示。
+                    HotfixLog.Error("[SMS.1.WL] <Update>b__6 NOT FOUND -- waterline offsets INACTIVE (update the lookup if the game version changed)");
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.WL] b__6: " + e.Message); }
+
+            // ③ CalcInstability 前缀：写入 stabilityForward
+            try
+            {
+                var mCi = AccessTools.Method(typeof(Ship), nameof(Ship.CalcInstability));
+                if (mCi != null)
+                {
+                    harmony.Patch(mCi, prefix: new HarmonyMethod(
+                        AccessTools.Method(typeof(HullDataApply), nameof(Prefix_CalcInstability))));
+                    installed++;
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.WL] CalcInstability: " + e.Message); }
+
+            HotfixLog.Info("[SMS.1.WL] HullDataApply armed on " + installed + "/3 hook(s)");
+        }
+
+        internal static void Prefix_Update(Ship __instance)
+        {
+            try { UpdatingShip = __instance; } catch { }
+        }
+
+        internal static void Postfix_UpdateB6(ref Vector3 __result)
+        {
+            try
+            {
+                var s = UpdatingShip;
+                if (s == null || s.hull == null || s.hull.data == null) return;
+
+                string model = s.hull.data.model;
+                if (string.IsNullOrEmpty(model)) return;
+                if (!HullData._Data.ContainsKey(model)) return;
+
+                float wl = HullData._Data[model].waterline;
+                if (Math.Abs(wl) < 0.0001f) return;
+
+                __result += new Vector3(0f, wl, 0f);
+            }
+            catch { }
+        }
+
+        internal static void Prefix_CalcInstability(Ship __instance)
+        {
+            try
+            {
+                if (__instance == null || __instance.hull == null) return;
+
+                if (__instance.hull.hullInfo == null)
+                    __instance.hull.hullInfo = new HullInfo();
+
+                string model = __instance.hull.data != null ? __instance.hull.data.model : null;
+                if (string.IsNullOrEmpty(model)) return;
+                if (!HullData._Data.ContainsKey(model)) return;
+
+                __instance.hull.hullInfo.stabilityForward = HullData._Data[model].stabilityForward;
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.1.WL] CalcInstability prefix: " + e.Message); }
+        }
+    }
+
+    // ===================================================================
+    // 以下代码原本在 Harmony/ShipRefreshHull.cs，2026-11-05 合并到本文件，
+    // 目的是与 duke 的 Harmony/Ship.cs 结构对齐（便于后续 diff / 上游合并）。
+    // ===================================================================
+
+    /// <summary>
+    /// [SMS.2.RH] 完整移植 Beta5 的 `Ship.RefreshHull` 重写（duke 的 31e3af3）。
+    ///
+    /// 目的：修复"部分船体首/尾段材质错色（miscolored fore/aft sections）"。
+    /// 该问题的根因在段（section）重排后未正确重建渲染器与 hull 尺寸，
+    /// duke 用整段重写 RefreshHull（含 UpdateSections / InitSectionsCyclical）解决。
+    /// 本文件为**逐行移植**（来源：GitHub 提交 31e3af3 的真实源码，非反编译），
+    /// 仅改动：命名空间、日志前缀、以及适配我们树的少量 API。
+    /// </summary>
+    [HarmonyPatch(typeof(Ship))]
+    internal class Patch_Ship_RefreshHull
+    {
+        private static void InitSectionsCyclical(Ship s, int middleCount)
+        {
+            var h = s.hull;
+
+            HotfixLog.Dbg($"    Default ordering");
+            while (middleCount - h.middles.Count != 0)
+            {
+                if (middleCount > h.middles.Count)
+                {
+                    var section = Util.CloneGameObject(h.middlesBase[h.middles.Count % h.middlesBase.Count]);
+                    h.middles.Add(section);
+                    Util.SetActiveX(section, true);
+                }
+                else if (middleCount < h.middles.Count)
+                {
+                    var section = h.middles[^1];
+                    h.middles.RemoveAt(h.middles.Count - 1);
+                    GameObject.DestroyImmediate(section);
+                }
+            }
+        }
+
+        private static void UpdateSections(Ship s, int middleCount)
+        {
+            var h = s.hull;
+            var hModelName = h.data.model;
+
+            HotfixLog.Dbg($"  Sections {hModelName} {h.middles.Count} -> {middleCount}");
+
+            if (!HullData.ModifiedSectionOrder(hModelName))
+            {
+                if (h.middles.Count != middleCount)
+                    InitSectionsCyclical(s, middleCount);
+            }
+            else
+            {
+                HotfixLog.Dbg($"    Custom ordering");
+                var hullData = HullData._Data[hModelName];
+
+                // Remove all, since order can be anything
+                while (h.middles.Count > 0)
+                {
+                    var section = h.middles[^1];
+                    h.middles.RemoveAt(h.middles.Count - 1);
+                    GameObject.DestroyImmediate(section);
+                }
+
+                // ★ 与 duke 对齐（docs/75）：先查 hullData.csv 的全局段序（按 middleCount 索引），
+                //   再查 parts.csv 的按部件段序（sect_<n> → sectioningParsedPart）。
+                List<int> order;
+
+                if (middleCount < hullData.sectioningParsed.Count)
+                {
+                    order = hullData.sectioningParsed[middleCount];
+                }
+                else
+                {
+                    string partName = h.data.name;
+
+                    if (!hullData.sectioningParsedPart.ContainsKey(partName) ||
+                        !hullData.sectioningParsedPart[partName].ContainsKey(middleCount))
+                    {
+                        // Melon<TweaksAndFixes>.Logger.Error(
+                        //     $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) has {data.Count} section lists defined, " +
+                        //     $"but #{middleCount} (0-indexed) was requested!"
+                        // );
+                        InitSectionsCyclical(s, middleCount);
+                        return;
+                    }
+
+                    order = hullData.sectioningParsedPart[partName][middleCount];
+                }
+
+                // Force default ordering for this section count
+                if (order.Count == 1 && order[0] == -1)
+                {
+                    InitSectionsCyclical(s, middleCount);
+                    return;
+                }
+
+                // Create in order
+                foreach (var index in order)
+                {
+                    if (index >= h.middlesBase.Count)
+                    {
+                        Melon<TweaksAndFixes>.Logger.Error(
+                            $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) section order for {middleCount} sections " +
+                            $"requested section #{index} (0-indexed), but there are only {h.middlesBase.Count} section models availible for this hull!"
+                        );
+                        continue;
+                    }
+
+                    // HotfixLog.Dbg($"    {index} : {h.middlesBase.Count}");
+                    var section = Util.CloneGameObject(h.middlesBase[index]);
+                    h.middles.Add(section);
+                    Util.SetActiveX(section, true);
+                }
+            }
+        }
+
+        public static Dictionary<string, Stack<GameObject>> PropCache = new();
+
+        // ★ 重入保护：L451 的 h.OnRenderersWasChanged() 会再触发 Ship.RefreshHull，
+        //   冷启动封面船那次重入时船体尚在构造中 → NullReferenceException（两次/回）。
+        [ThreadStatic] private static bool _inRefreshHull;
+
+        [HarmonyPrefix]
+        [HarmonyPatch(nameof(Ship.RefreshHull))]
+        internal static bool Prefix_RefreshHull(Ship __instance, bool updateSections)
+        {
+            if (_inRefreshHull)
+            {
+                HotfixLog.Warn("[SMS.2.RH] re-entrant RefreshHull skipped (inner call -> vanilla)");
+                return true;   // 内层交回原版，避免在半构造状态上跑我们的逻辑
+            }
+            _inRefreshHull = true;
+            try
+            {
+            // ★ [SMS.2.RH] 色差二分开关：refresh_hull=0 时完全走原版
+            if (!global::TAFHotfixBatch1.HotfixParams.RefreshHull)
+                return true;
+
+            HotfixLog.Dbg($"RefreshHull: {__instance.vesselName}");
+
+            // 防御性判空（理论上不会发生；发生即为上游状态异常，交回原版更安全）
+            if (__instance == null || __instance.hull == null || __instance.hull.data == null)
+            {
+                HotfixLog.Warn("[SMS.2.RH] RefreshHull: hull/data null, fallback to vanilla");
+                return true;
+            }
+
+            var s = __instance;
+            var h = s.hull;
+            var hModelName = h.data.model;
+            var hd = s.hull.data;
+
+            if (h.middlesBase != null)
+            {
+                foreach (var m in h.middlesBase)
+                {
+                    if (m != null) Util.SetActiveX(m, false);
+                }
+            }
+            else HotfixLog.Warn("[SMS.2.RH] middlesBase null @ " + s.vesselName);
+
+            if (updateSections)
+            {
+                int desiredMiddleCount = Mathf.RoundToInt(
+                    Mathf.Lerp(
+                        hd.sectionsMin - 0.499f,
+                        hd.sectionsMax + 0.499f,
+                        Mathf.InverseLerp(
+                            s.TonnageMin() / s.beamDraughtBonus,
+                            s.TonnageMax() / s.beamDraughtBonus,
+                            s.tonnage
+                        )
+                    )
+                );
+
+                UpdateSections(s, desiredMiddleCount);
+            }
+
+            HotfixLog.Dbg($"    {hModelName} | {HullData._Data.ContainsKey(hModelName)}");
+
+            Il2CppSystem.Collections.Generic.List<string> varSet = new();
+            if (hd.paramx != null && hd.paramx.ContainsKey("var"))
+                varSet = hd.paramx["var"];
+            else if (hd.paramx == null)
+                HotfixLog.Warn("[SMS.2.RH] paramx null @ " + s.vesselName);
+
+            var variations = s.hullCont != null ? s.hullCont.GetComponentsInChildren<Variation>() : null;
+            if (variations == null)
+                HotfixLog.Warn("[SMS.2.RH] hullCont null @ " + s.vesselName);
+            foreach (var v in variations ?? new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Variation>(0))
+            {
+                string active = string.Empty;
+
+                foreach (var vString in v.variations)
+                    // TODO: Check for multiple matches
+                    if (varSet.Contains(vString))
+                        active = vString;
+
+                HotfixLog.Dbg($"  Var {active}");
+
+                v.Init(active, s);
+            }
+
+            // TODO: Check for var params that don't exist for hull
+
+            HotfixLog.Dbg($"  Refreshing...");
+
+            try { h.Refresh(true); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.RH] h.Refresh threw: " + e.GetType().Name + " " + e.Message); }
+            try { s.RefreshMounts(); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.RH] RefreshMounts threw: " + e.GetType().Name + " " + e.Message); }
+
+            HotfixLog.Dbg($"  Done!");
+
+            // ★ 用 InstanceID 作键：Il2Cpp 的 GameObject 包装器做字典键会随机 KeyNotFoundException
+            Dictionary<int, Bounds> sectionBounds = new();
+            float totalLength = 0;
+            var sectionsContainer = h.bow != null ? h.bow.GetParent() : null;
+            if (sectionsContainer == null)
+            {
+                HotfixLog.Warn("[SMS.2.RH] sectionsContainer null, skip section-bounds pass");
+                return false;
+            }
+            var sectionsList = new Il2CppSystem.Collections.Generic.List<GameObject>(h.hullSections);
+            sectionsList.Reverse();
+            foreach (var section in sectionsList)
+            {
+                if (section == null) continue;            // 段可能已被销毁/替换
+                Bounds total = new();
+                bool inited = false;
+
+                foreach (var visual in Part.GetVisualRenderers(section))
+                {
+                    if (!visual.gameObject.activeInHierarchy)
+                        continue;
+
+                    // ★ 真因：部分 Renderer 在此阶段可能没有 MeshFilter / sharedMesh
+                    //   （或本身是 SkinnedMeshRenderer），直接解引用会 NRE。
+                    var mf = visual.GetComponent<MeshFilter>();
+                    if (mf == null || mf.sharedMesh == null)
+                        continue;
+
+                    var bounds = Util.InverseTransformBounds(
+                        sectionsContainer.transform,
+                        Util.TransformBounds(
+                            visual.transform,
+                            mf.sharedMesh.bounds
+                        )
+                    );
+
+                    if (!inited)
+                        total = bounds;
+                    else
+                        total.Encapsulate(bounds);
+
+                    inited = true;
+                }
+
+                var info = section.GetComponent<SectionInfo>()
+                    ?? section.GetComponentInChildren<SectionInfo>();
+
+                if (info != null)
+                {
+                    total.size += Vector3.forward * (info.sizeFrontMod + info.sizeBackMod);
+                    total.center += Vector3.forward * (info.sizeFrontMod - info.sizeBackMod) * 0.5f;
+                }
+
+                var lod = section.GetComponentInChildren<AutomaticLOD>();
+                lod.ComputeAllLODMeshes(false);
+                lod.SwitchToLOD(0, false);
+
+                totalLength += total.size.z;
+                sectionBounds[section.GetInstanceID()] = total;
+            }
+            totalLength *= -0.5f;
+
+            HotfixLog.Dbg($"  Total length: {totalLength}");
+
+            foreach (var section in sectionsList)
+            {
+                Util.SetLocalZ(
+                    section.transform,
+                    sectionBounds[section.GetInstanceID()].size.z * 0.5f + totalLength
+                    + section.transform.localPosition.z - sectionBounds[section.GetInstanceID()].center.z
+                );
+
+                var beam = s.beam != -1000f ? s.beam : 0f;
+                Util.SetScaleX(section.transform, beam / 100f + 1f);
+
+                var draught = s.draught != -1000f ? s.draught : 0f;
+                Util.SetScaleY(section.transform, draught / 100f + 1f);
+
+                totalLength += sectionBounds[section.GetInstanceID()].size.z;
+            }
+
+            HotfixLog.Dbg($"  Rescaled {s.beam} & {s.draught}");
+
+            h.RegrabDeckSizes();
+
+            Bounds shipBounds = new();
+            bool initedShipBounds = false;
+            foreach (var r in h.visualRenderers)
+            {
+                if (!r.gameObject.activeInHierarchy)
+                    continue;
+
+                if (!initedShipBounds)
+                    shipBounds = r.bounds;
+                else
+                    shipBounds.Encapsulate(r.bounds);
+
+                initedShipBounds = true;
+            }
+            
+            s.hullSize = shipBounds;
+
+            HotfixLog.Dbg($"  Total hull size: {s.hullSize.size} : {s.hullSize.center}");
+
+            if (s.hullSize.center.x != 0)
+            {
+                var newCenter = Util.ChangeX(s.hullSize.center, 0);
+                var size = s.hullSize.size;
+                s.hullSize = new(newCenter, size);
+            }
+
+            s.CheckHullSizeMaxMin();
+            s.decks = new();
+
+            var hullBoxCols = h.GetComponentsInChildren<BoxCollider>();
+            Bounds totalDeckBounds = new();
+            bool initedTotalDeckBounds = false;
+            foreach (var c in hullBoxCols)
+            {
+                if (c.gameObject.layer != LayerMask.NameToLayer("Deck"))
+                    continue;
+
+                var center = c.center;
+                center.Scale(c.transform.lossyScale);
+                var size = c.size;
+                size.Scale(c.transform.lossyScale);
+                Bounds adjusted = new(center, size);
+
+                if (!initedTotalDeckBounds)
+                    totalDeckBounds = adjusted;
+                else
+                    totalDeckBounds.Encapsulate(adjusted);
+
+                var f = c.size.x * c.transform.lossyScale.x * c.size.z * c.transform.lossyScale.z;
+
+                s.decks.Add(c, f);
+
+                initedTotalDeckBounds = true;
+            }
+
+            // ★★★ [SMS.2.PROP] 关键修复：把累计的甲板包围盒写回 `s.deckBounds`。
+            //   我们的 RefreshHull 移植漏了这一步（Beta6 用 __instance.deckBounds 计算布点区域），
+            //   导致 s.deckBounds 是 default(size=0) ⇒ PoissonDisc 生成 0 个点 ⇒ DeckProps 永远为空。
+            HotfixLog.Dbg($"  Found {s.decks.Count} decks (deckBounds={s.deckBounds.size})");
+
+            s.decksFake = Util.FindCustomChildren(h, new System.Func<GameObject, bool>((GameObject go) => {
+                return go.name == "DeckFake";
+            }));
+
+            HotfixLog.Dbg($"  Found {s.decksFake.Count} decksFake");
+
+            s.sidesLeft = new();
+            foreach (var c in hullBoxCols)
+            {
+                if (c.gameObject.name == "DeckBorderLeft")
+                    continue;
+
+                var f = c.size.z * c.transform.lossyScale.z;
+
+                s.sidesLeft.Add(c, f);
+            }
+
+            HotfixLog.Dbg($"  Found {s.sidesLeft.Count} sidesLeft");
+
+            s.sidesRight = new();
+            foreach (var c in hullBoxCols)
+            {
+                if (c.gameObject.name == "DeckBorderRight")
+                    continue;
+
+                var f = c.size.z * c.transform.lossyScale.z;
+
+                s.sidesRight.Add(c, f);
+            }
+
+            HotfixLog.Dbg($"  Found {s.sidesRight.Count} sidesRight");
+
+            s.cameraPlane = Util.GetChild<BoxCollider>(h, "CameraPlane", true);
+
+            if (s.cameraPlane == null)
+            {
+                var plane = Util.AttachNew(h.gameObject, "CameraPlane");
+                s.cameraPlane = plane.AddComponent<BoxCollider>();
+                s.cameraPlane.isTrigger = true;
+                Util.SetActiveX(s.cameraPlane, false);
+                s.cameraPlane.center = s.hullSize.center;
+                s.cameraPlane.size = Util.ChangeY(s.hullSize.size, 0.000001f);
+            }
+
+            HotfixLog.Dbg($"  Found camera plane");
+
+            s.collision.GetComponent<Rigidbody>().mass = s.Weight() * 1.475f;
+            s.collision.radius = s.hullSize.size.x * 1.023f * 0.5f;
+            s.collision.height = s.hullSize.size.z * 1.35f;
+            s.collisionRam = Util.GetOrAddComponent<CollisionArea>(s.collision);
+
+            HotfixLog.Dbg($"  Settup colision");
+
+            HotfixLog.Dbg("[SMS.2.PROP] enter: hull='" + hModelName
+                + "' coverage=" + UiM.TAF_Settings.settings.deckPropCoverage
+                + " updateSections=" + updateSections);
+
+            // ★ [SMS.2.PROP] 默认**不在 RefreshHull 内布点**（prop_in_refresh_hull=0）。
+            //   实测：走这里的布点会得到"一坨"的结果（段重建后 deck 包围盒/坐标未就绪）；
+            //   而 refresh_hull=0 时由另一条 deck-clutter 路径布点是正常的（100/50/25% 均正确）。
+            //   因此默认交给那条路径；需要对照实验时再把它设为 1。
+            if (!global::TAFHotfixBatch1.HotfixParams.PropInRefreshHull)
+            {
+                HotfixLog.Dbg("[SMS.2.PROP] skipped in RefreshHull (prop_in_refresh_hull=0)");
+            }
+            else if (UiM.TAF_Settings.settings.deckPropCoverage == 0)
+            {
+                Util.FindChild(h, "DeckProps")?.TryDestroy(true);
+            }
+            else
+            {
+                PlacePropsDuke(s, h);
+            }
+
+            {
+                int pc = -1;
+                try { var dp = Util.FindChild(h, "DeckProps"); pc = dp != null ? dp.GetChildren().Count : -2; } catch { }
+                HotfixLog.Dbg("[SMS.2.PROP] done: hull='" + hModelName + "' DeckProps children=" + pc);
+            }
+
+            try { ShipWakeHint.Register(s); } catch { }
+
+            s.RefreshHullStats();
+            s.RefreshMountedParts(null);
+            try { h.OnRenderersWasChanged(); }
+            catch (Exception e)
+            {
+                HotfixLog.Warn("[SMS.2.RH] OnRenderersWasChanged threw (cold-start re-entry?): "
+                    + e.GetType().Name + " " + e.Message);
+            }
+
+            // ★ [SMS.2.OCEAN] RefreshHull 之后重放一次海面模式：
+            //   场景绑定时的 SetOceanMode 早于本次重建，之后水面对象可能被重建回来
+            //   （表现为 oceanType=None 时仍有水）。这里只做很轻的开关动作。
+            try
+            {
+                int __ot = 0;
+                try { __ot = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+                if (__ot != 0)
+                    Patch_SceneManagerPreview.SetOceanMode(__ot);
+            }
+            catch { }
+
+            foreach (var p in s.hullAndParts)
+            {
+                if (p.visualRenderers == null)
+                    continue;
+
+                for (int i = p.visualRenderers.Count - 1; i >= 0; i--)
+                {
+                    if (p.visualRenderers[i] != null)
+                        continue;
+
+                    p.visualRenderers.RemoveAt(i);
+                }
+            }
+
+            }
+            finally { _inRefreshHull = false; }
+
+            return false;
+        }
+        /// <summary>
+
+        // ======================================================================
+        //  ★ duke 的原版甲板装饰物布点（Beta6 Patch_Ship L1105–1182 直译）
+        //    与我们的旧实现差别：
+        //      · 用 Ship.deckBounds（不是 decks 遍历 + 自写三维回退）
+        //      · 用 ModUtils.GeneratePoissonDiscPoints（Bridson 采样）
+        //      · 密度由 deckPropCoverage 换算 separation = 5 + 4*(100-cov)/100
+        //      · 每个点放一个 prop，并在 x 取反处放一个**镜像**
+        //      · prop 图层设为 "Decor"
+        // ======================================================================
+        private static void PlacePropsDuke(Ship s, Part hull)
+        {
+            try
+            {
+                var container = Util.FindOrCreate(hull.gameObject, "DeckProps");
+
+                // 模板：DeckProp → Choices[0] 的子物体就是可选 prop 列表
+                var template = Util.AttachInst(s.gameObject, "DeckProp", Vector3.zero, new Quaternion());
+                var choices = Util.GetChildren(Util.GetChildren(Util.GetChild(template, "Choices", false))[0]);
+
+                int coverage = UiM.TAF_Settings.settings.deckPropCoverage;
+                float separation = 5f + (4f * (100 - coverage)) / 100f;
+                var db = s.deckBounds;
+
+                float halfX = (db.size.x - separation / 4f) / 2f;
+                var poissonArea = new Bounds(db.center, new Vector3(halfX, db.size.y, db.size.z));
+                var points = PoissonDisc.Generate(poissonArea, separation);
+
+                // 缓存：把已存在的 DeckProps 子物体按名字压栈，复用而不是无限增长
+                if (PropCache.Count == 0)
+                {
+                    for (int i = 0; i < choices.Count; i++)
+                        PropCache[choices[i].name] = new Stack<GameObject>();
+                }
+
+                var existing = Util.GetChildren(container);
+                for (int i = 0; i < existing.Count; i++)
+                {
+                    string nm = existing[i].name.Replace("(Clone)", "");
+                    if (!PropCache.ContainsKey(nm)) PropCache[nm] = new Stack<GameObject>();
+                    PropCache[nm].Push(existing[i]);
+                }
+
+                int layer = LayerMask.NameToLayer("Decor");
+                int placed = 0;
+
+                foreach (var pt in points)
+                {
+                    int pick = UnityEngine.Random.Range(0, choices.Count);
+                    string pickName = choices[pick].name;
+
+                    float px = pt.x - s.hullSize.size.x / 2f;
+                    float pz = pt.z - s.hullSize.size.z / 2f;
+
+                    var deck = s.FindDeckAtPoint(new Vector3(px, 0f, pz));
+                    if (deck == null) continue;
+
+                    float deckY = deck.transform.position.y;
+
+                    // 正向
+                    GameObject prop;
+                    if (PropCache[pickName].Count <= 0)
+                        prop = UnityEngine.Object.Instantiate(choices[pick], container.transform);
+                    else
+                        prop = PropCache[pickName].Pop();
+
+                    prop.transform.localPosition = new Vector3(px, deckY, pz);
+                    Util.SetLayer(prop, layer);
+                    placed++;
+
+                    // 镜像（x 取反）
+                    float mx = 0f - px;
+                    var deck2 = s.FindDeckAtPoint(new Vector3(mx, 0f, pz));
+                    if (deck2 == null) continue;
+
+                    GameObject prop2;
+                    if (PropCache[pickName].Count <= 0)
+                        prop2 = UnityEngine.Object.Instantiate(choices[pick], container.transform);
+                    else
+                        prop2 = PropCache[pickName].Pop();
+
+                    prop2.transform.localPosition = new Vector3(mx, deck2.transform.position.y, pz);
+                    Util.SetLayer(prop2, layer);
+                    placed++;
+                }
+
+                // 回收多余缓存 + 销毁模板
+                foreach (var kv in PropCache)
+                    while (kv.Value.Count > 0) Util.TryDestroy(kv.Value.Pop(), true);
+
+                Util.TryDestroy(template, true);
+
+                HotfixLog.Dbg("[SMS.2.PROP] duke placed=" + placed + " points=" + points.Count
+                              + " separation=" + separation.ToString("0.##"));
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.PROP] PlacePropsDuke: " + e.Message); }
+        }
+
+        /// [SMS.2.PROP] 布点坐标 → (甲板, 局部坐标)。
+        /// PoissonDisc 返回世界 XZ；原移植代码又减了 shipBounds/2 后直接喂 FindDeckAtPoint，
+        /// 导致每个点都判定不到甲板（port48：props=27 pts=61 但 children=0）。
+        /// 这里三级回退：世界坐标 → hull 局部 → 旧相对坐标。
+        /// </summary>
+        private static BoxCollider ResolveDeck(Ship s, Transform hullTr, Vector2 p, out Vector3 usedLocal)
+        {
+            usedLocal = Vector3.zero;
+            Vector3 world = new Vector3(p.x, hullTr != null ? hullTr.position.y : 0f, p.y);
+
+            try { var d = s.FindDeckAtPoint(world); if (d != null) { usedLocal = hullTr.InverseTransformPoint(world); return d; } } catch { }
+            try { var local = hullTr.InverseTransformPoint(world); var d2 = s.FindDeckAtPoint(local); if (d2 != null) { usedLocal = local; return d2; } } catch { }
+            try
+            {
+                var rel = new Vector3(p.x - s.hullSize.size.x / 2f, 0f, p.y - s.hullSize.size.z / 2f);
+                var d3 = s.FindDeckAtPoint(rel); if (d3 != null) { usedLocal = rel; return d3; }
+            }
+            catch { }
+            return null;
+        }
+
+    }
+
 }

@@ -100,10 +100,30 @@ namespace TAFHotfixBatch1.Modules
             {
                 EnsureCampaign();
 
+
                 string key = SafeName(player) + "|" + SafeType(shipType);
                 HashSet<string> ids = Bucket(_drawnIds, key);
                 HashSet<string> fps = Bucket(_drawnFps, key);
                 Ship.Store lastDrawn = null;
+
+                // ★ [SMS.2.G2] 混合模式：vanilla 的 RandomShipOfType 不消费 desiredYear（实测同一份设计连抽 10 次），
+                //   因此年份控制必须在这一层做：YearCreated 降序 + 年份窗口 + 单次折半，并跳过本回合已抽过的 id。
+                try
+                {
+                    if (HotfixParams.TrueMixed && IsMixedMode())
+                    {
+                        Ship.Store g2 = G2Pick(__instance, player, shipType, ids, fps);
+                        if (g2 != null)
+                        {
+                            ids.Add(SafeGuid(g2.id));
+                            var gfp = Fingerprint(g2);
+                            if (gfp != null) fps.Add(gfp);
+                            __result = g2;
+                            return false;
+                        }
+                    }
+                }
+                catch (Exception g2e) { HotfixLog.Debug("[SMS.2.G2] pick failed: " + g2e.Message); }
 
                 for (int attempt = 0; attempt < MaxTries; attempt++)
                 {
@@ -163,6 +183,41 @@ namespace TAFHotfixBatch1.Modules
             }
         }
 
+
+        private static bool IsMixedMode()
+        {
+            try { return (int)CampaignController.Instance.designsUsage == 1; }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// [SMS.2.G2] 年份感知抽取：**走注册表**（shipsPerYear × 别名桶），
+        /// 按 YearCreated 降序 + 年份窗口 + 单次折半 + 跳过本回合已抽 id。
+        /// 返回 null 表示"我们没接"（交回 vanilla / P 模块）。
+        /// </summary>
+        private static Ship.Store G2Pick(ShipsPerPlayer spp, Player player, ShipType type, HashSet<string> ids, HashSet<string> fps)
+        {
+            try
+            {
+                string dbg;
+                var picked = PredefPoolProbe.PickFromRegistry(player, type, ids, fps, out dbg);
+                if (picked != null)
+                {
+                    HotfixLog.Dbg("[SMS.2.G2] picked player=" + SafeName(player) + " type=" + SafeType(type)
+                                  + " year=" + SafeYear(picked) + " " + dbg);
+                    return picked;
+                }
+                HotfixLog.Dbg("[SMS.2.G2] registry pick none: player=" + SafeName(player) + " type=" + SafeType(type) + " " + dbg);
+                return null;
+            }
+            catch { return null; }
+        }
+
+        private static string SafeYear(Ship.Store s)
+        {
+            try { return s.YearCreated.ToString(); } catch { return "?"; }
+        }
+
         private static void EnsureCampaign()
         {
             try
@@ -173,7 +228,7 @@ namespace TAFHotfixBatch1.Modules
                     _campaign = cc;
                     _drawnIds.Clear();
                     _drawnFps.Clear();
-                    HotfixLog.Info("[SMS.1.C] new campaign -> draw memory cleared");
+                    HotfixLog.Dbg("[SMS.1.C] new campaign -> draw memory cleared");
                 }
             }
             catch { }
@@ -187,7 +242,7 @@ namespace TAFHotfixBatch1.Modules
         }
 
         /// <summary>五项内容指纹：标准吨位/船宽/吃水/横摇/纵摇。用于识别"内容重复但 id 不同"。</summary>
-        private static string Fingerprint(Ship.Store s)
+        internal static string Fingerprint(Ship.Store s)
         {
             try
             {

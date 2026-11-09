@@ -32,15 +32,19 @@ namespace TAFHotfixBatch1.Modules
             int made = SharedBackfillProbe.MadeCount;
             int total = ChainFixes + DupIds + SharedFlags + made;
             if (total <= 0) return;
-            Notify("TAF 热修：读取本存档时已修复 " + total + " 处数据（改造链 " + ChainFixes
+            // 玩家文案（将来走 LNG：$taf_SMS_CC_*）；日志保持英文
+            string playerText = "TAF 热修：读取本存档时已修复 " + total + " 处数据（改造链 " + ChainFixes
                    + " / 重复 id " + DupIds + " / 共享设计标记 " + SharedFlags
-                   + " / 反建设计 " + made + "）。请【另存为一个新档】，然后重新读取该新档 —— 修复才会在游戏中完全生效。");
+                   + " / 反建设计 " + made + "）。请【另存为一个新档】，然后重新读取该新档 —— 修复才会在游戏中完全生效。";
+            Notify(playerText, "save repaired on load: total=" + total
+                   + " (chain=" + ChainFixes + " dupIds=" + DupIds
+                   + " sharedFlags=" + SharedFlags + " antiBuild=" + made + ")");
         }
-        internal static void Notify(string text)
+        internal static void Notify(string text, string logText = null)
         {
             _pending = true;
             _text = text;
-            HotfixLog.Warn("[SMS.1.NOTIFY] queued: " + text);
+            HotfixLog.Info("[SMS.1.NOTIFY] queued" + (logText != null ? ": " + logText : ""));
         }
 
         internal static void Install(HarmonyLib.Harmony harmony)

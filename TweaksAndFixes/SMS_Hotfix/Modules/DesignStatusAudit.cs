@@ -93,7 +93,7 @@ namespace TAFHotfixBatch1.Modules
                 string name = "";
                 try { name = ship.vesselName; } catch { }
 
-                HotfixLog.Warn("[SMS.1.STA] design '" + name + "' status=" + status
+                HotfixLog.Dbg("[SMS.1.STA] design '" + name + "' status=" + status
                                + " reparation=" + isRep + " index=" + i);
 
                 // 只把 status==1（Normal）的设计改回 0：

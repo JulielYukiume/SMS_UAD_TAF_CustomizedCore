@@ -576,7 +576,22 @@ namespace TweaksAndFixes
             waterAll.active = false;
 
 
-            if (Config.Param("taf_disable_all_water", 0) == 1)
+            // ★ [SMS.2.OCEAN] 三档模式统一判定（参数优先，其次用户设置）
+            //   0 = 原版 / 1 = 简化（只关通用海面）/ 2 = 空水（关通用海面 + MoveWithShip + 4 个船渠水）
+            int __daW = global::TweaksAndFixes.Config.Param("taf_disable_all_water", 0) == 1 ? 1 : 0;
+            int __ot = 0;
+            try { __ot = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+            int __oceanMode = (__daW == 1) ? 2 : __ot;
+            
+            if (__oceanMode == 1)
+            {
+                // 简化海面：只关通用海面，船渠水 / MoveWithShip / 光效全部保留
+                Patch_SceneManager.LevelBattle.GetChild("opwOcean4OPW_00").active = false;
+                // Duke 的 StaticOcean 在 Beta6 是死代码（声明未启用）⇒ Simple 由我们直接创建
+                try { global::TweaksAndFixes.Patch_SceneManagerPreview.CreateStaticOcean(); }
+                catch (System.Exception __e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.OCEAN] simple create: " + __e.Message); }
+            }
+            else if (__oceanMode == 2)
             {
                 Patch_SceneManager.LevelBattle.GetChild("opwOcean4OPW_00").active = false;
                 Patch_SceneManager.LevelConstructor.GetChild("MoveWithShip").active = false;

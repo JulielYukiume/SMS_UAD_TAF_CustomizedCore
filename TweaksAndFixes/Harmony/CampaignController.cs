@@ -648,16 +648,22 @@ namespace TweaksAndFixes
                 }
             }
 
-            if (Config.DontClobberTechForPredefs)
+            // [SMS.1.G] 真混合：只有 Mixed 模式阻止 clobber（Fast/Slow 不干预）
+            bool mixedBlock = !Config.DontClobberTechForPredefs && TAFHotfixBatch1.Modules.TrueMixed.ShouldBlockClobber();
+            if (mixedBlock)
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.1.G] clobber blocked (true_mixed + Mixed mode)");
+
+            if (Config.DontClobberTechForPredefs || mixedBlock)
             {
                 // We need to force the game not to clobber techs.
                 // We do this by claiming we've already clobbered up to this year.
                 int startYear;
                 int year;
-                if (prewarm)
-                    startYear = __instance.StartYear;
-                else
-                    startYear = __instance.CurrentDate.AsDate().Year;
+                // ★ [SMS.2.G2] 即使 prewarm 也用**当前年**：用 StartYear 会把 initedForYear 钉在开局年
+                //   （1910），导致此后所有设计抽取都按开局年选（实测 desiredYear=1910 的根因）。
+                try { startYear = __instance.CurrentDate.AsDate().Year; }
+                catch { startYear = prewarm ? __instance.StartYear : __instance.StartYear; }
+                if (startYear <= 0) startYear = __instance.StartYear;
                 __instance._currentDesigns.GetNearestYear(startYear, out year);
                 __instance.initedForYear = year;
             }

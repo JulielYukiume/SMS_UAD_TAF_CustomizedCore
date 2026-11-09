@@ -101,8 +101,7 @@ namespace TAFHotfixBatch1.Modules
                 //     HotfixLog.Warn("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override ENABLED"
                 //                    + " (refit_tonnage_display=1) -- 会在读档时改写改造船的吨位边界");
                 // }
-                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override 永久停用"
-                               + "（会污染 tonnage，见 docs/61-tonnage-pollution.md）");
+                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override disabled permanently (pollutes tonnage; see docs/61)");
 
                 var maint = AccessTools.Method(typeof(Ship), "MaintenanceCost");
                 if (maint != null)
@@ -136,6 +135,7 @@ namespace TAFHotfixBatch1.Modules
                 finally { _inCost = false; }
 
                 if (v <= 0f) return;
+
                 if (Math.Abs(v - __result) < 0.5f) return;
 
                 // 吨位探针：一次运行即可确定"实际吨位"对应哪个 API（便于下一步修正）
@@ -248,6 +248,20 @@ namespace TAFHotfixBatch1.Modules
                 finally { _inCost = false; }
 
                 if (v <= 0f) return;
+
+                // ★ [T5] 把设计自带缺陷（超重/缺重）计入实际排水量显示：
+                //   Store.overweight / underweight 是百分比（如 11.057 表示 +11.057%）。
+                // 缺陷在**船**上（weight probe SHIP 有值、DESG 为 0）；且 underweight 为负值表示缺重
+                float ow = 0f, uw = 0f;
+                try
+                {
+                    var st = __instance.ToStore();
+                    if (st != null) { ow = st.overweight; uw = st.underweight; }
+                }
+                catch { }
+                if (ow != 0f || uw != 0f)
+                    v *= 1f + (ow + uw) / 100f;
+
                 if (Math.Abs(v - __result) < 0.5f) return;
 
                 string key = "W|" + SafeId(__instance) + "|" + __result.ToString("0") + "->" + v.ToString("0");
@@ -259,7 +273,8 @@ namespace TAFHotfixBatch1.Modules
                     HotfixLog.Debug("[SMS.1.E][fix] Weight: '" + SafeName(__instance) + "' (Refit) : "
                                    + __result.ToString("0.##") + " -> " + v.ToString("0.##")
                                    + "   [design Weight=" + wf.ToString("0.##") + " TonnageMax=" + tmax.ToString("0.##")
-                                   + "  usage=" + (tmax > 0f ? (wf / tmax * 100f).ToString("0.0") + "%" : "?") + "]");
+                                   + "  usage=" + (tmax > 0f ? (wf / tmax * 100f).ToString("0.0") + "%" : "?")
+                                   + "  flaws=ow:" + ow.ToString("0.##") + "/uw:" + uw.ToString("0.##") + "]");
                 }
                 __result = v;
             }

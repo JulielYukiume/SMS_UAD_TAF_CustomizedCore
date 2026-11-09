@@ -7,7 +7,7 @@ using System.Text;
 namespace TAFHotfixBatch1
 {
     /// <summary>
-    /// 配置读取：<c>&lt;游戏根&gt;/Mods/TAFHotfix-Batch1.config.csv</c>，格式与 NavalHoliday 一致
+    /// 配置读取：<c>&lt;游戏根&gt;/Mods/SMS_UAD_TAF_CustomizedCore_DEBUG.config.csv</c>，格式与 NavalHoliday 一致
     /// （三列 <c>name,value,comment</c>；兼容 ObjLoader 的 <c>@name,value</c> 表头写法）。
     ///
     /// 约定（用户 2026-10-16 定）：
@@ -21,7 +21,7 @@ namespace TAFHotfixBatch1
     /// </summary>
     internal static class HotfixParams
     {
-        private const string CfgName = "TAFHotfix-Batch1.config.csv";
+        private const string CfgName = "SMS_UAD_TAF_CustomizedCore_DEBUG.config.csv";
 
         // ---- 内建默认值（与随附的 config.csv 保持一致）----
         internal static string Mode = "log";                 // log = 只记录不改；apply = 真正写入
@@ -52,13 +52,15 @@ namespace TAFHotfixBatch1
         /// </summary>
         internal static bool ReparationMothball = true;
         /// <summary>[SMS.1.SCENE] 场景结构只读探针。</summary>
-        internal static bool SceneProbe = true;
+        internal static bool SceneProbe = false;
         /// <summary>[SMS.1.MAT] 舯段渲染/材质只读探针。</summary>
-        internal static bool MatProbe = true;
+        internal static bool MatProbe = false;
         /// <summary>[SMS.1.DECOR] 是否用替代实现拦截空渲染器的 Decor.Awake（默认 0=不介入）。</summary>
         internal static bool DecorAwakeGuard = false;
+        /// <summary>[SMS.2.RH] 吞掉 Decor.Awake 的原版异常（默认开）。</summary>
+        internal static bool DecorAwakeSwallow = true;   // 默认不介入（开启会用空集合替代，可能抑制装饰初始化）
         /// <summary>[SMS.1.DECOR] 是否启用"被炮塔/炮管遮挡则隐藏装饰件"（默认 0=只生成不隐藏）。</summary>
-        internal static bool DecorHideOccluded = true;
+        internal static bool DecorHideOccluded = true;    // 碰撞/遮挡隐藏（救生艇等应与原版一致）
         /// <summary>[SMS.1.SHADOW] 关闭舯段投影（A/B 色差测试用）。</summary>
         internal static bool MiddleShadowOff = false;
         /// <summary>[SMS.1.WL] 应用 hullData 的 waterline / stabilityForward（Beta4 引入）。</summary>
@@ -66,9 +68,119 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.SHIPGEN] 造船限制模式：0=关，1=生成后审计，2=审计+强制（暂等同 1）。</summary>
         internal static int ShipGenLimits = 0;
         /// <summary>[SMS.1.OCEAN] 静态海面可行性探针（只读）。</summary>
-        internal static bool StaticOceanProbe = true;
+        internal static bool StaticOceanProbe = false;
         /// <summary>[SMS.1.DECAL] 命中贴花按口径缩放（duke 的弹孔修复）。</summary>
         internal static bool DecalSize = true;
+        /// <summary>[SMS.1.RH] 是否启用移植的 RefreshHull（0=走原版，用于色差二分）。</summary>
+        internal static bool RefreshHull = true;
+        /// <summary>[SMS.1.SEC] 分段状态转储探针（只读，色差定位用）。</summary>
+        internal static bool SectionProbe = false;
+        /// <summary>[SMS.1.SEC] 材质实验：0=不动 1=中段改用艏段材质 2=全船段统一为 steel_4</summary>
+        internal static int SectionMatForce = 0;
+        /// <summary>[SMS.1.SEC] 实验：1=关闭各段 AutomaticLOD（强制全精度模型）</summary>
+        internal static int SectionLodOff = 0;
+        /// <summary>[SMS.2.SEC] 把舯段 isStatic 置 false（验证静态合批假设）。</summary>
+        internal static bool SectionNoBatch = false;
+        /// <summary>[SMS.2.SEC] 每段最多 dump 几个 Renderer。</summary>
+        internal static int SectionProbeMax = 32;
+        /// <summary>[SMS.2.SEC] 舱段 UV 归一化（把舯段 UV 跨度/中心对齐到舰艏）。</summary>
+        internal static bool SectionUvNormalize = false;
+        /// <summary>[SMS.2.SEC] 关闭船体所有 Renderer 的反射探针采样（排除"环境反射"假设）。</summary>
+        internal static bool SectionReflectionOff = false;
+        /// <summary>[SMS.2.SEC] 把所有船体段的 probeAnchor 统一到船体根（排除"锚点不同"假设）。</summary>
+        internal static bool SectionProbeAnchor = false;
+
+        // ---- [SMS.2.SEC] 构造器反射探针（色差根因）----
+        /// <summary>Probes 容器开关（0=按 mode 处理）。</summary>
+        internal static bool ConstructorProbes = false;
+        /// <summary>0=整组关(duke) 1=只关局部(默认) 2=局部intensity=0 3=全开 4=只留船中 6=1+提Global 7=局部下移</summary>
+        internal static int ConstructorProbeMode = 1;
+        /// <summary>mode=6 时 Global 探针 intensity。</summary>
+        internal static float ConstructorProbeGlobalIntensity = 1.4f;
+        /// <summary>mode=7 时局部探针的 Y。</summary>
+        internal static float ConstructorProbeY = -30f;
+
+        /// <summary>[SMS.2.CQ] 殖民征服/叛乱事件成功率取证探针（DEBUG 用）。</summary>
+        internal static bool ConquestProbe = false;
+        /// <summary>[SMS.2.UI] dump 选项窗口 General 页每行的结构（用于按钮组改造）。</summary>
+        internal static bool UiDumpGeneral = false;
+        /// <summary>[SMS.2.LOG] 不额外写独立日志文件（只走 MelonLoader 主日志）。</summary>
+        internal static bool LogNoFile = true;
+        /// <summary>[SMS.2.CQ] 需要翻转的事件类型（逗号分隔，默认 2=Rebellion）。</summary>
+        internal static string ConquestFixTypes = "2";
+        /// <summary>[SMS.2.CQ] 0=原版 1=翻转 2=自定义公式</summary>
+        internal static int ConquestChanceMode = 2;   // 默认启用自定义公式（叛乱成功率修复）
+        /// <summary>[SMS.2.CQ] mode2: 防御方吨位达到 required 的几倍时成功率 100%</summary>
+        internal static float ConquestRatioFull = 1f;   // 1.7 征服只需 1× 需求吨位 ⇒ 叛乱对齐也用 1×
+        /// <summary>[SMS.2.CQ] mode2: 开局/满期概率系数（与 duke 的 0.01/0.5 同形）</summary>
+        internal static float ConquestMultStart = 0.6f;
+        internal static float ConquestMultFull = 1f;
+        /// <summary>[SMS.1.PROP] 是否在 RefreshHull 内布点（默认 0：交给 deck-clutter 路径）。</summary>
+        internal static bool PropInRefreshHull = true;   // 3.22 原版不再创建 DeckProps，装饰物只能由我们布点（默认必须为 1）
+        /// <summary>[SMS.1.OCEAN] 守夜人方案（默认关；port90 证实会误伤船体）。</summary>
+        internal static bool OceanKeeper = false;
+        /// <summary>[SMS.1.OCEAN] port92 的分叉方案（默认关；现由 GameManager 的模式分支统一负责）。</summary>
+        internal static bool OceanDukeAllWater = false;
+
+        // ---- [SMS.1.OCEAN] 简化海面可调参数（供各 modder 自选观感）----
+        internal static float StaticOceanGloss = 0.15f;     // _Glossiness
+        internal static float StaticOceanMetallic = 0.85f;  // _Metallic（小值而非 0，保留一点金属感）
+        internal static float StaticOceanTiling = 400f;     // _MainTex 平铺
+        internal static float StaticOceanR = 0.03f;         // 颜色 R
+        internal static float StaticOceanG = 0.08f;         // 颜色 G
+        internal static float StaticOceanB = 0.13f;         // 颜色 B
+        internal static float StaticOceanAlpha = 0.9f;
+        /// <summary>[SMS.1.OCEAN] 简化/空水模式下的鱼雷雷迹补偿。</summary>
+        internal static bool TorWakeHint = true;
+        // ---- 鱼雷雷迹可调参数 ----
+        internal static float TorWakeSeconds = 25f;    // 保留时间（**战斗内秒**，随游戏时间倍速流逝）
+        internal static float TorWakeFadePow = 2.5f;     // 渐隐强度：alpha ∝ t^n（n 越大，旧段消失越快）
+        internal static float TorWakeWidth = 2f;     // 条带宽度（米）
+        internal static float TorWakeAlpha = 160f;
+        /// <summary>[SMS.1.OCEAN] 只为本方可见的鱼雷绘制雷迹（避免通过雷迹提前发现敌雷）。</summary>
+        internal static bool TorWakeVisibleOnly = true;
+        /// <summary>[SMS.2.WAKE] 鱼雷消失后雷迹保留时间（秒）。</summary>
+        internal static float TorWakeLinger = 10f;
+        /// <summary>[SMS.2.WAKE] 用鱼雷实际渲染包围盒取点（否则用 transform.position）。</summary>
+        internal static bool TorWakeUseRenderBounds = true;
+        /// <summary>[SMS.2.WAKE] 仅当鱼雷模型可见时才画雷迹（防"未发现敌雷"剧透）。</summary>
+        internal static bool TorWakeRequireModel = true;
+        internal static int TorWakeMinRenderers = 2;   // 暂默认关（模型判定待校准）
+        /// <summary>[SMS.2.WAKE] 鱼雷模型取证日志（独立开关，默认关）。</summary>
+        internal static bool TorWakeProbe = false;
+        /// <summary>[SMS.2.WAKE] 鱼雷未被原版记录可见性时是否放行（0=隐藏，防剧透）。</summary>
+        internal static bool TorWakeFailOpen = true;   // 原版不常调用 Torpedo.ShowForOthers，默认放行；防剧透待玩家舰队识别
+        /// <summary>[SMS.2.WAKE] 只为我方阵营可见的舰船/鱼雷绘制航迹（wake_visible_only）。</summary>
+        internal static bool WakeVisibleOnly = true;
+        // ---- [SMS.2.OCEAN] 原版水底 FakePlaneToFixWiresGlitch ----
+        internal static float NoneWaterBottomMode = 1f;      // 0=不动 1=改色 2=关闭 3=下移
+        internal static float NoneWaterBottomR = 0.02f;
+        internal static float NoneWaterBottomG = 0.05f;
+        internal static float NoneWaterBottomB = 0.09f;
+        internal static float NoneWaterBottomHeight = -200f;
+        // ---- [SMS.2.OCEAN] 原版海水（oceanType=0）材质微调 ----
+        internal static bool VanillaOceanTweak = false;   // 默认关，先探针
+        // OceanFFT 公开字段（战斗海面）
+        internal static float VanillaOceanB = 0.13f;  // mode=3 时的位移量（叠加在原 -100 上）
+        // ---- [SMS.2.WAKE] 船尾航迹 ----
+        internal static bool ShipWakeHint = true;
+        internal static float ShipWakeSeconds = 20f;
+        internal static float ShipWakeFadePow = 2.5f;
+        internal static float ShipWakeWidth = 2.5f;
+        internal static float ShipWakeAlpha = 120f;
+        internal static float ShipWakeExtraWidth = 2f;
+        internal static float ShipWakeR = 0.86f;
+        internal static float ShipWakeG2 = 0.92f;
+        internal static float ShipWakeB = 0.96f;
+        internal static float ShipWakePoints = 6f;
+        internal static float ShipWakeDash = 1f;
+        internal static float ShipWakeOrigin = 1f;
+        internal static float ShipWakeColorMode = 1f;
+        internal static float ShipWakeMaxShips = 60f;
+        internal static float ShipWakeMaxDistance = 30000f;  // 超距不更新航迹（米）   // 航迹同时处理的船数上限（0=不限）   // 1=仿航行灯彩色航迹   // 0=舰艉 1=舯段     // 基础亮度（0-255，最新点的 alpha）      // 不透明度（1=不透明；<1 走 Transparent）
+        /// <summary>[SMS.2.WAKE] 单帧位移超过该值视为瞬移（清除该点列）/ teleport threshold (m)</summary>
+        internal static float ShipWakeMaxJump = 500f;
+
         /// <summary>[SMS.1.OCEAN] 启用静态海面（duke 的低质海面方案，需要 TAFData 贴图）。</summary>
         internal static bool StaticOcean = false;
         /// <summary>
@@ -156,9 +268,26 @@ namespace TAFHotfixBatch1
         /// 默认 0。开启后零副作用，仅写日志。
         /// </summary>
         internal static bool DebugAiDesignProbe = false;
-        internal static bool TrueMixed = false;
+                /// <summary>[SMS.2.G2] 混合模式下允许抽"超前当前年"的年数。</summary>
+        /// <summary>[SMS.2.G2] T1 基础容忍：设计 techs 数 - 玩家已完成科技数 的允许差值。</summary>
+                /// <summary>[SMS.2.G2][T3] 兜底"大跃进"总开关：1=开启（包链抽不到时补科技）。</summary>
+        internal static bool TrueMixedCatchup = true;
+        /// <summary>[SMS.2.G2][T3] 兜底时回退年数下限。</summary>
+        internal static int TrueMixedCatchupBackMin = 3;
+        /// <summary>[SMS.2.G2][T3] 兜底时回退年数上限。</summary>
+        internal static int TrueMixedCatchupBackMax = 5;
+        /// <summary>[SMS.2.G2][T3] 兜底冷却回合数。</summary>
+        internal static int TrueMixedCatchupCooldownTurns = 6;
+internal static int TrueMixedTechTolerance = 8;
+        /// <summary>[SMS.2.G2] 年份补正起始年（每 step 年 +1 容忍）。</summary>
+        internal static int TrueMixedTechYearBase = 1920;
+        /// <summary>[SMS.2.G2] 年份补正步长（年）。</summary>
+        internal static int TrueMixedTechYearStep = 2;
+internal static int TrueMixedYearAhead = 2;
+        /// <summary>[SMS.2.G2] 混合模式下回溯窗口年数（从 year_ahead 往前的年数）。</summary>
+internal static int TrueMixedYearWindow = 10;
+internal static bool TrueMixed = false;
         internal static int DesignCapPerType = 6;
-        internal static int TrueMixedTries = 3;
         internal static bool DebugParamTrace = false;
         internal static bool KeepLastDesign = true;
         internal static bool SharedBackfillProbe = true;
@@ -175,6 +304,7 @@ namespace TAFHotfixBatch1
         /// <summary>读取一份 CSV 到 _raw（后读覆盖先读）。缺失文件不报错，仅记录。</summary>
         private static void LoadFile(string fileName)
         {
+            // 只从 Mods/ 读取；TAFData/ 下的 DEBUG 配置仅作**分发备份**（用的时候由用户自己拿出来）
             string path = Path.Combine(AppContext.BaseDirectory, "Mods", fileName);
             try
             {
@@ -201,7 +331,7 @@ namespace TAFHotfixBatch1
 
                     _raw[name] = cells[1].Trim();
                 }
-                HotfixLog.Info("[cfg] loaded " + _raw.Count + " entries from Mods/" + fileName + " (new keys: " + (_raw.Count - before) + ")");
+                HotfixLog.Info("[cfg] loaded " + _raw.Count + " entries from " + path + " (new keys: " + (_raw.Count - before) + ")");
             }
             catch (Exception e)
             {
@@ -230,12 +360,78 @@ namespace TAFHotfixBatch1
             SceneProbe = GetBool("scene_probe", SceneProbe);
             MatProbe = GetBool("mat_probe", MatProbe);
             DecorAwakeGuard = GetBool("decor_awake_guard", DecorAwakeGuard);
+            DecorAwakeSwallow = GetBool("decor_awake_swallow", DecorAwakeSwallow);
             DecorHideOccluded = GetBool("decor_hide_occluded", DecorHideOccluded);
             MiddleShadowOff = GetBool("middle_shadow_off", MiddleShadowOff);
             HullDataApply = GetBool("hull_data_apply", HullDataApply);
             ShipGenLimits = GetInt("shipgen_limits", ShipGenLimits);
             StaticOceanProbe = GetBool("static_ocean_probe", StaticOceanProbe);
             DecalSize = GetBool("decal_size", DecalSize);
+            RefreshHull = GetBool("refresh_hull", RefreshHull);
+            SectionProbe = GetBool("section_probe", SectionProbe);
+            SectionMatForce = GetInt("section_mat_force", SectionMatForce);
+            SectionLodOff = GetInt("section_lod_off", SectionLodOff);
+            SectionNoBatch = GetBool("section_no_batch", SectionNoBatch);
+            SectionProbeMax = GetInt("section_probe_max", SectionProbeMax);
+            SectionUvNormalize = GetBool("section_uv_normalize", SectionUvNormalize);
+            SectionReflectionOff = GetBool("section_reflection_off", SectionReflectionOff);
+            SectionProbeAnchor = GetBool("section_probe_anchor", SectionProbeAnchor);
+            ConstructorProbes = GetBool("constructor_probes", ConstructorProbes);
+            ConstructorProbeMode = GetInt("constructor_probe_mode", ConstructorProbeMode);
+            ConstructorProbeGlobalIntensity = GetFloat("constructor_probe_global_intensity", ConstructorProbeGlobalIntensity);
+            ConstructorProbeY = GetFloat("constructor_probe_y", ConstructorProbeY);
+            ConquestProbe = GetBool("conquest_probe", ConquestProbe);
+            UiDumpGeneral = GetBool("ui_dump_general", UiDumpGeneral);
+            LogNoFile = GetBool("log_no_file", LogNoFile);
+            ConquestFixTypes = GetStr("conquest_fix_types", ConquestFixTypes);
+            ConquestChanceMode = GetInt("conquest_chance_mode", ConquestChanceMode);
+            ConquestRatioFull = GetFloat("conquest_ratio_full", ConquestRatioFull);
+            ConquestMultStart = GetFloat("conquest_mult_start", ConquestMultStart);
+            ConquestMultFull = GetFloat("conquest_mult_full", ConquestMultFull);
+            PropInRefreshHull = GetBool("prop_in_refresh_hull", PropInRefreshHull);
+            OceanKeeper = GetBool("ocean_keeper", OceanKeeper);
+            OceanDukeAllWater = GetBool("ocean_duke_all_water", OceanDukeAllWater);
+            StaticOceanGloss = GetFloat("static_ocean_gloss", StaticOceanGloss);
+            StaticOceanMetallic = GetFloat("static_ocean_metallic", StaticOceanMetallic);
+            StaticOceanTiling = GetFloat("static_ocean_tiling", StaticOceanTiling);
+            StaticOceanR = GetFloat("static_ocean_r", StaticOceanR);
+            StaticOceanG = GetFloat("static_ocean_g", StaticOceanG);
+            StaticOceanB = GetFloat("static_ocean_b", StaticOceanB);
+            StaticOceanAlpha = GetFloat("static_ocean_alpha", StaticOceanAlpha);
+            TorWakeHint = GetBool("torp_wake_hint", TorWakeHint);
+            TorWakeSeconds = GetFloat("torp_wake_seconds", TorWakeSeconds);
+            TorWakeFadePow = GetFloat("torp_wake_fade_pow", TorWakeFadePow);
+            TorWakeWidth = GetFloat("torp_wake_width", TorWakeWidth);
+            TorWakeAlpha = GetFloat("torp_wake_alpha", TorWakeAlpha);
+            TorWakeVisibleOnly = GetBool("torp_wake_visible_only", TorWakeVisibleOnly);
+            TorWakeLinger = GetFloat("torp_wake_linger", TorWakeLinger);
+            TorWakeUseRenderBounds = GetBool("torp_wake_use_render_bounds", TorWakeUseRenderBounds);
+            TorWakeFailOpen = GetBool("torp_wake_fail_open", TorWakeFailOpen);
+            TorWakeRequireModel = GetBool("torp_wake_require_model", TorWakeRequireModel);
+            TorWakeMinRenderers = GetInt("torp_wake_min_renderers", TorWakeMinRenderers);
+            TorWakeProbe = GetBool("torp_wake_probe", TorWakeProbe);
+            WakeVisibleOnly = GetBool("wake_visible_only", WakeVisibleOnly);
+            NoneWaterBottomMode = GetFloat("none_waterbottom_mode", NoneWaterBottomMode);
+            NoneWaterBottomR = GetFloat("none_waterbottom_r", NoneWaterBottomR);
+            NoneWaterBottomG = GetFloat("none_waterbottom_g", NoneWaterBottomG);
+            NoneWaterBottomB = GetFloat("none_waterbottom_b", NoneWaterBottomB);
+            NoneWaterBottomHeight = GetFloat("none_waterbottom_height", NoneWaterBottomHeight);
+            ShipWakeHint = GetBool("ship_wake_hint", ShipWakeHint);
+            ShipWakeSeconds = GetFloat("ship_wake_seconds", ShipWakeSeconds);
+            ShipWakeFadePow = GetFloat("ship_wake_fade_pow", ShipWakeFadePow);
+            ShipWakeWidth = GetFloat("ship_wake_width", ShipWakeWidth);
+            ShipWakeAlpha = GetFloat("ship_wake_alpha", ShipWakeAlpha);
+            ShipWakeExtraWidth = GetFloat("ship_wake_extra_width", ShipWakeExtraWidth);
+            ShipWakeR = GetFloat("ship_wake_r", ShipWakeR);
+            ShipWakeG2 = GetFloat("ship_wake_g", ShipWakeG2);
+            ShipWakeB = GetFloat("ship_wake_b", ShipWakeB);
+            ShipWakePoints = GetFloat("ship_wake_points", ShipWakePoints);
+            ShipWakeDash = GetFloat("ship_wake_dash", ShipWakeDash);
+            ShipWakeOrigin = GetFloat("ship_wake_origin", ShipWakeOrigin);
+            ShipWakeColorMode = GetFloat("ship_wake_color_mode", ShipWakeColorMode);
+            ShipWakeMaxShips = GetFloat("ship_wake_max_ships", ShipWakeMaxShips);
+            ShipWakeMaxDistance = GetFloat("ship_wake_max_distance", ShipWakeMaxDistance);
+            ShipWakeMaxJump = GetFloat("ship_wake_max_jump", ShipWakeMaxJump);
             StaticOcean = GetBool("static_ocean", StaticOcean);
             RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
@@ -266,8 +462,16 @@ namespace TAFHotfixBatch1
             DebugAiRefit = GetFloat("debug_ai_refit", DebugAiRefit);
             DebugAiDesignProbe = GetBool("debug_ai_design_probe", DebugAiDesignProbe);
             TrueMixed = GetBool("true_mixed", TrueMixed);
+            TrueMixedYearAhead = GetInt("true_mixed_year_ahead", TrueMixedYearAhead);
+            TrueMixedTechTolerance = GetInt("true_mixed_tech_tolerance", TrueMixedTechTolerance);
+            TrueMixedCatchup = GetBool("true_mixed_catchup", TrueMixedCatchup);
+            TrueMixedCatchupBackMin = GetInt("true_mixed_catchup_back_min", TrueMixedCatchupBackMin);
+            TrueMixedCatchupBackMax = GetInt("true_mixed_catchup_back_max", TrueMixedCatchupBackMax);
+            TrueMixedCatchupCooldownTurns = GetInt("true_mixed_catchup_cooldown_turns", TrueMixedCatchupCooldownTurns);
+            TrueMixedTechYearBase = GetInt("true_mixed_tech_year_base", TrueMixedTechYearBase);
+            TrueMixedTechYearStep = GetInt("true_mixed_tech_year_step", TrueMixedTechYearStep);
+            TrueMixedYearWindow = GetInt("true_mixed_year_window", TrueMixedYearWindow);
             DesignCapPerType = GetInt("design_cap_per_type", DesignCapPerType);
-            TrueMixedTries = GetInt("true_mixed_tries", TrueMixedTries);
             DebugParamTrace = GetBool("debug_param_trace", DebugParamTrace);
             KeepLastDesign = GetBool("keep_last_design", KeepLastDesign);
             SharedBackfillProbe = GetBool("shared_backfill_probe", SharedBackfillProbe);

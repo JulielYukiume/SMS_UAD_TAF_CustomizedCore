@@ -24,6 +24,10 @@ namespace TAFHotfixBatch1.Modules
 
         internal static bool Prefix(Ship ship, bool demandAtLeastOneOtherDesign, ref bool __result)
         {
+            // ★ 仅战役世界场景（World）生效：构造器/主菜单/战斗里 AI 也会删设计，
+            //   在那些场景触发"保留最后设计"没有意义，反而造成误触发。
+            try { if (TweaksAndFixes.Patch_SceneManager.sceneState != Il2Cpp.GameManager.GameState.World) return true; } catch { }
+
             try
             {
                 if (ship == null) return true;

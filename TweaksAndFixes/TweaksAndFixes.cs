@@ -4,7 +4,7 @@ using Il2Cpp;
 using Il2CppLitJson;
 
 [assembly: MelonGame("Game Labs", "Ultimate Admiral Dreadnoughts")]
-[assembly: MelonInfo(typeof(TweaksAndFixes.TweaksAndFixes), "TAF-3.21.1-SMS.1", "3.21.1-SMS.1", "NathanKell & DukeDagor, SMS fork")]
+[assembly: MelonInfo(typeof(TweaksAndFixes.TweaksAndFixes), "TAF-3.22.0-SMS.2", "3.22.0-SMS.2-rc4", "NathanKell & DukeDagor, SMS fork")]
 [assembly: MelonColor(255, 220, 220, 0)]
 [assembly: HarmonyDontPatchAll]
 
@@ -20,7 +20,32 @@ namespace TweaksAndFixes
         {
             try
             {
-                HarmonyInstance.PatchAll(MelonAssembly.Assembly);
+                // ★ [SMS.2.PATCH] 逐类打补丁 + 单个失败不影响其它（Harmony 的 PatchAll 是"全有或全无"，
+                //   一个补丁类找不到目标方法就会让整批补丁都不生效 —— 曾经导致整个热修失效）。
+                int patched = 0, failed = 0;
+                foreach (var type in MelonAssembly.Assembly.GetTypes())
+                {
+                    if (type == null) continue;
+                    try
+                    {
+                        var processor = HarmonyInstance.CreateClassProcessor(type);
+                        if (processor == null) continue;
+                        processor.Patch();
+                        patched++;
+                    }
+                    catch (Exception pe)
+                    {
+                        failed++;
+                        try
+                        {
+                            Melon<TweaksAndFixes>.Logger.Warning("[SMS.2.PATCH] " + type.FullName + " failed: "
+                                + (pe.InnerException != null ? pe.InnerException.Message : pe.Message));
+                        }
+                        catch { }
+                    }
+                }
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.2.PATCH] per-type patching done: classes=" + patched
+                                                + " failed=" + failed);
 
                 try { TAFHotfixBatch1.Bootstrap.Install(HarmonyInstance); }
                 catch (Exception hs) { Melon<TweaksAndFixes>.Logger.BigError("[SMS] hotfix install failed: " + hs); }

@@ -50,7 +50,7 @@ namespace TAFHotfixBatch1.Modules
             }
             catch (Exception e) { HotfixLog.Warn("[SMS.1.Y2] ChangeState hook: " + e.Message); }
 
-            HotfixLog.Info("[SMS.1.Y2] ShipTypeSupportApply v3: armed on " + n + "/3 (原版 0..5 不动; 其它从 " + ExtBase + " 起)");
+            HotfixLog.Info("[SMS.1.Y2] ShipTypeSupportApply v3: armed " + n + "/3 (vanilla 0..5 untouched; extended start at " + ExtBase + ")");
         }
 
         private static int Patch(HarmonyLib.Harmony harmony, Type t, string name, string patchName)
@@ -110,7 +110,7 @@ namespace TAFHotfixBatch1.Modules
                 if (__result != null)
                 {
                     if (_callInt <= 40 || HotfixParams.Verbose)
-                        HotfixLog.Info("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> '" + __result.name + "' (vanilla)  n=" + _callInt);
+                        HotfixLog.Dbg("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> '" + __result.name + "' (vanilla)  n=" + _callInt);
                     return;
                 }
 
@@ -119,11 +119,11 @@ namespace TAFHotfixBatch1.Modules
                 if (_intToType.TryGetValue(__0, out ext) && ext != null)
                 {
                     __result = ext;
-                    HotfixLog.Info("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> '" + ext.name + "' (extended)");
+                    HotfixLog.Dbg("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> '" + ext.name + "' (extended)");
                 }
                 else if (_callInt <= 40 || HotfixParams.Verbose)
                 {
-                    HotfixLog.Info("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> null (no extension)  built=" + _built);
+                    HotfixLog.Dbg("[SMS.1.Y2] int->ShipType: arg=" + __0 + " -> null (no extension)  built=" + _built);
                 }
             }
             catch { }

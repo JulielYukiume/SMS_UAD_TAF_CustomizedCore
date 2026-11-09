@@ -8,7 +8,7 @@ using UnityEngine;
 namespace TweaksAndFixes
 {
     /// <summary>
-    /// [SMS.1.SCENE] 场景结构**只读探针**（移植 3.22 `Patch_SceneManager.ConfigureScene` 的前置侦察）。
+    /// [SMS.2.SCENE] 场景结构**只读探针**（移植 3.22 `Patch_SceneManager.ConfigureScene` 的前置侦察）。
     ///
     /// 目的：在真正接管场景之前，先确认我们这版游戏里
     ///   · 构造器场景根对象叫什么（Beta6 里是 `LevelConstructor`）
@@ -38,9 +38,9 @@ namespace TweaksAndFixes
             string state = "";
             try { state = newState.ToString(); } catch { }
 
-            // ★ [SMS.1.OCEAN] 任何状态都延迟应用一次海面模式（主菜单/港口场景也要生效）
+            // ★ [SMS.2.OCEAN] 任何状态都延迟应用一次海面模式（主菜单/港口场景也要生效）
             try { MelonLoader.MelonCoroutines.Start(DelayedApplyOceanMode(state)); }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] schedule: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] schedule: " + e.Message); }
 
             // 只关心构造器/战斗相关状态
             if (state != "Constructor" && state != "Battle" && state != "LoadingBattle"
@@ -54,11 +54,11 @@ namespace TweaksAndFixes
                 Probe(state);
                 BindScene(state);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.SCENE] probe: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.SCENE] probe: " + e.Message); }
         }
 
         /// <summary>
-        /// [SMS.1.SCENE] 把探针找到的对象登记到 `Patch_SceneManagerPreview`，
+        /// [SMS.2.SCENE] 把探针找到的对象登记到 `Patch_SceneManagerPreview`，
         /// 让 `ConfigureForPreview` 真正生效（预览时隐藏构造器 Sun、显示战斗 Scene Lighting）。
         ///
         /// 实测（2026-10-26，port37 探针）：
@@ -106,7 +106,7 @@ namespace TweaksAndFixes
                 }
                 catch { }
 
-                // ★ [SMS.1.OCEAN] 静态海面由**设置菜单的 Ocean Type** 驱动（与 duke 的设计一致，
+                // ★ [SMS.2.OCEAN] 静态海面由**设置菜单的 Ocean Type** 驱动（与 duke 的设计一致，
                 //   不再依赖外部 config 参数）：
                 //     oceanType = 0 → 默认（原版 FFT 海面）
                 //     oceanType = 1 → 静态海面（duke 的低质方案，用 TAFData 贴图）
@@ -118,17 +118,20 @@ namespace TweaksAndFixes
 
                     Patch_SceneManagerPreview.SetOceanMode(oceanType);
 
-                    HotfixLog.Info("[SMS.1.OCEAN] oceanType=" + oceanType);
+                    bool isBattle = state != null && state.IndexOf("Battle", StringComparison.OrdinalIgnoreCase) >= 0;
+                    global::ReflectionIntensity.Apply(isBattle);
+
+                    HotfixLog.Dbg("[SMS.2.OCEAN] oceanType=" + oceanType);
                 }
                 catch { }
 
-                HotfixLog.Info("[SMS.1.SCENE] bind state=" + state
+                HotfixLog.Dbg("[SMS.2.SCENE] bind state=" + state
                                + "  LevelConstructor=" + (Patch_SceneManagerPreview.LevelConstructor != null)
                                + "  LevelBattle=" + (Patch_SceneManagerPreview.LevelBattle != null)
                                + "  DayCycleAndWeather=" + (Patch_SceneManagerPreview.DayCycleAndWeatherO != null)
                                + "  previewInited=" + Patch_SceneManagerPreview.PreviewInited);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.SCENE] bind: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.SCENE] bind: " + e.Message); }
         }
 
 
@@ -144,7 +147,7 @@ namespace TweaksAndFixes
 
 
         /// <summary>
-        /// [SMS.1.OCEAN] 延迟 ~30 帧后绑定场景并应用海面模式。
+        /// [SMS.2.OCEAN] 延迟 ~30 帧后绑定场景并应用海面模式。
         ///
         /// 用"任何 ChangeState 都触发 + 延迟"的方式，解决主菜单/港口场景
         /// 首次进入时不生效的问题（Beta6 在主菜单也生效）。
@@ -160,15 +163,15 @@ namespace TweaksAndFixes
                 int oceanType = 0;
                 try { oceanType = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
                 Patch_SceneManagerPreview.SetOceanMode(oceanType);
-                HotfixLog.Info("[SMS.1.OCEAN] delayed apply state=" + state + " oceanType=" + oceanType);
+                HotfixLog.Dbg("[SMS.2.OCEAN] delayed apply state=" + state + " oceanType=" + oceanType);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] delayed apply: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] delayed apply: " + e.Message); }
         }
 
         private static void Probe(string state)
         {
             var sb = new StringBuilder();
-            sb.Append("[SMS.1.SCENE] state=").Append(state);
+            sb.Append("[SMS.2.SCENE] state=").Append(state);
 
             // 1) 尝试若干候选根名
             foreach (var name in Roots)

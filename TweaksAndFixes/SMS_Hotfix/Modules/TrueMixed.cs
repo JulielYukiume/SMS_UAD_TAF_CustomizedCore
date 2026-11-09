@@ -38,6 +38,19 @@ namespace TAFHotfixBatch1.Modules
         private static readonly System.Collections.Generic.Dictionary<string, bool> _forced =
             new System.Collections.Generic.Dictionary<string, bool>();
 
+
+        /// <summary>[SMS.1.G] 混合模式是否应阻止 vanilla 的"按年份批量补科技"（clobber）。
+        /// 仅当真混合开启且 designsUsage==Mixed 时成立；Fast(2) / Slow(0) 保持原版行为。</summary>
+        internal static bool ShouldBlockClobber()
+        {
+            try
+            {
+                if (!HotfixParams.TrueMixed) return false;
+                return GetUsage() == UsageMixed;
+            }
+            catch { return false; }
+        }
+
         internal static void Install(HarmonyLib.Harmony harmony)
         {
             if (!HotfixParams.TrueMixed && HotfixParams.DesignCapPerType <= 0)
@@ -104,7 +117,8 @@ namespace TAFHotfixBatch1.Modules
                     try { cc.DeleteOldDesigns(player); } catch (Exception e2) { HotfixLog.Debug("[SMS.1.G] DeleteOldDesigns: " + e2.Message); }
                 }
 
-                // 强制走预制菜分支
+                // 强制走预制菜分支：仍然用 prewarming（不做 designsUsage 切换——那会破坏我们自己的
+                // usage==1 准入检查，并可能让存档选项"自己动了"）。
                 try { __instance.prewarming = true; _forced[key] = true; } catch { }
 
                 HotfixLog.Debug("[SMS.1.G] forced predef branch: player=" + PlayerName(player) + " (" + ShowName(player) + ") turn=" + Turn()
@@ -311,5 +325,88 @@ namespace TAFHotfixBatch1.Modules
             try { var nm = p.Name(false); if (!string.IsNullOrEmpty(nm)) return nm; } catch { }
             return PlayerName(p);
         }
+
+    /// <summary>[SMS.1.G] 取证：GetPredefinedDesign 每次调用前后的"已完成科技数"变化，用于确认 clobber 真正发生点。</summary>
+    [HarmonyLib.HarmonyPatch(typeof(CampaignController), "GetPredefinedDesign")]
+    internal static class ProbeGetPredefinedDesign
+    {
+        private static int Completed(Player p)
+        {
+            try
+            {
+                int n = 0;
+                foreach (var tech in p.technologies)
+                    if (tech != null && tech.progress >= 100f) n++;
+                return n;
+            }
+            catch { return -1; }
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<string, int> _before =
+            new System.Collections.Generic.Dictionary<string, int>();
+
+        [HarmonyLib.HarmonyPrefix]
+        internal static void Prefix(Player player, bool prewarming)
+        {
+            try
+            {
+                if (!HotfixParams.TrueMixed) return;
+                _before[player.data.name] = Completed(player);
+                HotfixLog.Dbg("[SMS.1.G] GetPredefinedDesign enter player='" + player.data.name
+                              + "' prewarming=" + prewarming + " techs=" + Completed(player)
+                              + " usage=" + (int)CampaignController.Instance.designsUsage);
+            }
+            catch { }
+        }
+
+        [HarmonyLib.HarmonyPostfix]
+        internal static void Postfix(Player player, bool prewarming)
+        {
+            try
+            {
+                if (!HotfixParams.TrueMixed) return;
+                int after = Completed(player);
+                int before;
+                if (!_before.TryGetValue(player.data.name, out before)) before = after;
+                int delta = after - before;
+                HotfixLog.Dbg("[SMS.1.G] GetPredefinedDesign exit  player='" + player.data.name
+                              + "' techs=" + after + " delta=" + delta
+                              + (delta > 0 ? "  <== CLOBBERED" : ""));
+            }
+            catch { }
+        }
     }
+
+
+
+    [HarmonyLib.HarmonyPatch(typeof(CampaignDesigns), "RandomShip",
+        new Type[] { typeof(Player), typeof(ShipType), typeof(int) })]
+    internal static class Patch_RandomShipDesiredYear
+    {
+        [HarmonyLib.HarmonyPrefix]
+        internal static void Prefix(Player player, ShipType type, ref int desiredYear)
+        {
+            try
+            {
+                if (!HotfixParams.TrueMixed) return;
+                var cc = CampaignController.Instance;
+                if (cc == null) return;
+
+                int cur = 0;
+                try { cur = cc.CurrentDate.AsDate().Year; } catch { return; }
+                if (cur <= 0) return;
+
+                // 只修正"明显落后"的请求（G 模块强制 prewarming 时 vanilla 会用 StartYear 当 desiredYear）
+                if (desiredYear >= cur - 1) return;
+
+                HotfixLog.Dbg("[SMS.2.G2] desiredYear " + desiredYear + " -> " + cur
+                              + " (player=" + (player != null && player.data != null ? player.data.name : "?")
+                              + " type=" + (type != null ? type.name : "?") + ")");
+                desiredYear = cur;
+            }
+            catch { }
+        }
+    }
+
+}
 }

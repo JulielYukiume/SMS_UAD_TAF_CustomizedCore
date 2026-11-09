@@ -92,6 +92,130 @@ namespace TweaksAndFixes
         public static bool hasCleanedUpBattle = true;
         public static bool wasInMainMenu = false;
 
+        /// <summary>[SMS.2.OCEAN] 按 oceanType 在场景配置时统一应用海面模式。</summary>
+        internal static void ApplyOceanModeForScene(GameManager.GameState state)
+        {
+            try
+            {
+                int __ot = 0;
+                try { __ot = UiM.TAF_Settings.settings.oceanType; } catch { }
+                int __daW = Config.Param("taf_disable_all_water", 0) == 1 ? 1 : 0;
+                int __m = (__daW == 1) ? 2 : __ot;
+                HotfixLog.Info("[SMS.2.OCEAN] ApplyOceanModeForScene state=" + state + " mode=" + __m);
+
+                if (__m == 1 || __m == 2)
+                {
+                    var ocean = LevelBattle != null ? LevelBattle.GetChild("opwOcean4OPW_00") : null;
+                    if (ocean != null) { ocean.active = false; HotfixLog.Info("[SMS.2.OCEAN] ocean root off (scene=" + state + ")"); }
+                    else HotfixLog.Warn("[SMS.2.OCEAN] ocean root null (LevelBattle=" + (LevelBattle != null) + ")");
+                }
+
+                if (__m == 2)
+                {
+                    var mws = LevelConstructor != null ? LevelConstructor.GetChild("MoveWithShip") : null;
+                    if (mws != null) mws.active = false;
+                    var dock = LevelConstructor != null ? LevelConstructor.GetChild("Dock") : null;
+                    if (dock != null)
+                    {
+                        string[] names = { "water_in_huge_dock_002", "water_in_big_dock_002", "water_in_middle_dock_002", "water_in_smoll_dock_002" };
+                        for (int i = 0; i < names.Length; i++) { var d = dock.GetChild(names[i]); if (d != null) d.active = false; }
+                    }
+                }
+
+                // 原版水底 FakePlaneToFixWiresGlitch（空水模式重着色/关闭/下移）
+                try { NoneWaterBottom.Apply(__m); } catch { }
+
+
+                // 雷迹补偿（mode 1/2 都启用；mode 0 由循环内部自行清理）
+                if (__m == 1 || __m == 2) TorpedoWakeHint.EnsureRunning();
+
+                if (__m == 1)
+                {
+                    if (Patch_SceneManagerPreview.StaticOcean == null) Patch_SceneManagerPreview.CreateStaticOcean();
+                    Patch_SceneManagerPreview.EnsureTexture();
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] ApplyOceanModeForScene: " + e.Message); }
+        }
+
+        private static bool _probesLogged;
+
+
+        /// <summary>
+        /// [SMS.2.SEC] 诊断：`LevelConstructor/Probes` 到底是什么。
+        /// 注意：**不能用 `GetComponent&lt;T&gt;()`** —— Il2Cpp 的泛型方法存储在
+        /// `MethodInfoStoreGeneric_GetComponent_Public_T_0` 处会抛
+        /// "type initializer threw an exception"，整段 dump 会中断。
+        /// 因此这里只用非泛型 API：Transform 子节点遍历 + FindObjectsOfType（各自 try/catch）。
+        /// </summary>
+
+        private static string ParentChain(Transform t)
+        {
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                int guard = 0;
+                while (t != null && guard++ < 6)
+                {
+                    if (sb.Length > 0) sb.Insert(0, "/");
+                    sb.Insert(0, t.name);
+                    t = t.parent;
+                }
+                return sb.ToString();
+            }
+            catch { return "?"; }
+        }
+
+        private static void DumpProbes(GameObject probesGo, bool enabled)
+        {
+            // 仅在 verbose=1 时输出（这些是排查用细节，不是运行期信息）
+            if (!HotfixParams.Verbose) return;
+
+            HotfixLog.Info("[SMS.2.SEC] Probes mode=" + HotfixParams.ConstructorProbeMode
+                           + " active=" + (probesGo != null && probesGo.activeSelf)
+                           + " param=" + enabled + " obj=" + (probesGo != null ? probesGo.name : "NULL"));
+            if (probesGo == null) return;
+
+            try
+            {
+                var t = probesGo.transform;
+                for (int i = 0; i < t.childCount; i++)
+                {
+                    var c = t.GetChild(i);
+                    if (c == null) continue;
+                    HotfixLog.Dbg("[SMS.2.SEC]   child[" + i + "] '" + c.name + "' active=" + c.gameObject.activeSelf);
+                }
+            }
+            catch { }
+
+            // 注意：`FindObjectsOfType<LightProbeGroup>()` 在 Il2Cpp 下必然抛
+            //   "MethodInfoStoreGeneric_FindObjectsOfType_... threw an exception"，
+            //   且该场景不含 LightProbeGroup（Probes 下只有 1 全局 + 9 局部反射探针），故不再尝试。
+
+            bool lcWasActive = false;
+            try
+            {
+                lcWasActive = LevelConstructor.activeSelf;
+                if (!lcWasActive) LevelConstructor.active = true;
+
+                var rps = UnityEngine.Object.FindObjectsOfType<ReflectionProbe>();
+                if (rps != null)
+                {
+                    for (int k = 0; k < rps.Length; k++)
+                    {
+                        var rp = rps[k];
+                        if (rp == null) continue;
+                        HotfixLog.Dbg("[SMS.2.SEC]   RP '" + rp.name + "' box=" + rp.boxProjection
+                                      + " size=" + rp.size + " blend=" + rp.blendDistance
+                                      + " intensity=" + rp.intensity + " pos=" + rp.transform.position
+                                      + " chain=" + ParentChain(rp.transform));
+                    }
+                }
+            }
+            catch { }
+            finally { try { if (!lcWasActive) LevelConstructor.active = false; } catch { } }
+        }
+
         public static void ConfigureScene(GameManager.GameState state)
         {
             if (!inited)
@@ -190,8 +314,81 @@ namespace TweaksAndFixes
             Mesh0.active = false;
             Mesh2.active = false;
             BordersMesh.active = false;
-            LevelConstructor.GetChild("Probes").active = true;
+            try
+            {
+                // ★★★ [SMS.2.SEC] 色差根因（2026-11-05 实测确认）★★★
+                //   `LevelConstructor/Probes` 就是"舯段色带"的根因：
+                //   · 打开它 ⇒ 原版就存在的舯段色差（duke 在 69a529a "Fixes rare visual bug in constructor" 中关闭）；
+                //   · 关闭它 ⇒ 色差消失（代价：整船色调/光效会变化，因为它同时提供了场景光照基础）。
+                //   控制参数：`taf_constructor_probes`（默认 0 = 关闭，与 duke 一致；设 1 可复现 bug 对照）。
+                var probesGo = LevelConstructor.GetChild("Probes");
+                // ★★★ [SMS.2.SEC] 色差根因与三档修复（2026-11-05 实测确认）★★★
+                //   Probes = 1 个全局反射探针 + 9 个局部探针（size=250、z=-50/0/+50、intensity=1.75、box=false、blend=1）。
+                //   局部探针互相大幅重叠且 box=false ⇒ 无法混合 ⇒ Unity 按"最近探针"整对象二选一
+                //   ⇒ 沿船长切换探针 ⇒ 各段反射不同 ⇒ 舯段色带。且探针位于船体内部时会拍进内壁。
+                //   档位（constructor_probe_mode）：
+                //     0 = duke 做法：整组关闭（最"死"，兼容旧行为）
+                //     1 = 只保留全局探针（亮度可调）——供 modder 调画面
+                //     2 = 保留全部探针，但局部探针下移到 constructor_probe_y（默认 -30m）——默认推荐
+                int probeMode = HotfixParams.ConstructorProbeMode;
+                float gi = HotfixParams.ConstructorProbeGlobalIntensity;
+
+                if (probesGo != null)
+                {
+                    bool lcWas = LevelConstructor.activeSelf;
+                    try
+                    {
+                        if (!lcWas) LevelConstructor.active = true;   // 便于 FindObjectsOfType 扫到 inactive 子对象
+
+                        if (probeMode == 0)
+                        {
+                            probesGo.active = false;
+                        }
+                        else
+                        {
+                            probesGo.active = true;
+                            var rps = UnityEngine.Object.FindObjectsOfType<ReflectionProbe>();
+                            if (rps != null)
+                            {
+                                for (int k = 0; k < rps.Length; k++)
+                                {
+                                    var rp = rps[k];
+                                    if (rp == null) continue;
+                                    string chain = ParentChain(rp.transform);
+                                    if (chain.IndexOf("Probes", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                                    bool isGlobal = chain.IndexOf("Global", System.StringComparison.OrdinalIgnoreCase) >= 0;
+
+                                    if (isGlobal)
+                                    {
+                                        rp.intensity = gi;
+                                        continue;
+                                    }
+
+                                    if (probeMode == 1) rp.gameObject.SetActive(false);
+                                    else
+                                    {
+                                        var t = rp.transform;
+                                        t.position = new Vector3(t.position.x, HotfixParams.ConstructorProbeY, t.position.z);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e) { HotfixLog.Warn("[SMS.2.SEC] probes: " + e.Message); }
+                    finally { try { if (!lcWas) LevelConstructor.active = false; } catch { } }
+                }                if (!_probesLogged)
+                {
+                    _probesLogged = true;
+                    DumpProbes(probesGo, HotfixParams.ConstructorProbeMode == 0 ? false : true);
+                }
+            }
+            catch { }
             LevelBattle.GetChild("WaterLevel").active = true;
+
+            // ★ [SMS.2.OCEAN] 放在 WaterLevel 处理**之后**、switch(state) 之前：
+            //   此时 LevelBattle 已就绪，且不会被后续 WaterLevel 操作覆盖。
+            try { ApplyOceanModeForScene(state); }
+            catch (Exception __e) { HotfixLog.Warn("[SMS.2.OCEAN] ConfigureScene: " + __e.Message); }
 
             switch (state)
             {
@@ -503,6 +700,11 @@ namespace TweaksAndFixes
         [HarmonyPostfix]
         internal static void Prefix_UpdateCycle()
         {
+            // ★ [SMS.2.OCEAN] 先更新简化海面（跟随 + 滚动），再处理波高：
+            //   原来这行在 Battle 早退之后，导致**战斗中简化海面不滚动**。
+            try { Patch_SceneManagerPreview.UpdateStaticOcean(); } catch { }
+            try { UiM.RefreshCampaignRows(); } catch { }
+
             if (Patch_SceneManager.sceneState == GameManager.GameState.Battle)
                 return;
         
@@ -514,12 +716,13 @@ namespace TweaksAndFixes
                 dcaw.oceanFFT.globalWaveScale = 0.01f;
 
             CPUWaterSimulator.instance.UpdateGlobalWaveScale(dcaw.oceanFFT.globalWaveScale);
+
         }
     }
 
 internal static class Patch_SceneManagerPreview
 {
-    // ★ [SMS.1.SCENE] 3.22 B6 的"预览模式"开关（移植自 Beta6 Patch_SceneManager）。
+    // ★ [SMS.2.SCENE] 3.22 B6 的"预览模式"开关（移植自 Beta6 Patch_SceneManager）。
     //
     // 作用：在生成舰船/部件预览图、以及刷新分段计划 UI 时，暂时把场景切到"预览模式"
     //   —— 隐藏构造器场景的 Sun、显示战斗场景的 Scene Lighting（若静态海面启用则同时缩放海面）。
@@ -533,13 +736,13 @@ internal static class Patch_SceneManagerPreview
     internal static GameObject LevelConstructor;
     internal static GameObject LevelBattle;
 
-    /// <summary>[SMS.1.OCEAN] 战斗/构造器场景里的天气对象（由场景配置阶段赋值）。</summary>
+    /// <summary>[SMS.2.OCEAN] 战斗/构造器场景里的天气对象（由场景配置阶段赋值）。</summary>
     internal static GameObject DayCycleAndWeatherO;
 
 
 
         // ======================================================================
-        //  [SMS.1.OCEAN] 静态海面（移植 duke 的低质海面方案）
+        //  [SMS.2.OCEAN] 静态海面（移植 duke 的低质海面方案）
         //
         //  贴图来自 mod 包：Mods/TAFData/Tileable_Ocean.png (+ _Bump)
         //  做法：自建一个超大四边形，跟随相机 XZ、Y 固定在水面；每帧滚动 _MainTex。
@@ -547,6 +750,9 @@ internal static class Patch_SceneManagerPreview
         // ======================================================================
 
         internal static Material StaticOceanMat;
+        private static GameObject _oceanRoot;
+        private static Texture2D _oceanTex;
+        private static Texture2D _oceanBump;
         private static float _oceanDt;
         private static bool _oceanLooping;
 
@@ -569,23 +775,162 @@ internal static class Patch_SceneManagerPreview
                     if (tex.LoadImage(bytes, false)) return tex;
                 }
 
-                HotfixLog.Warn("[SMS.1.OCEAN] texture not found: " + fileName);
+                HotfixLog.Warn("[SMS.2.OCEAN] texture not found: " + fileName);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] load png: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] load png: " + e.Message); }
             return null;
         }
 
         /// <summary>创建静态海面（只在 static_ocean=1 时调用）。</summary>
-        internal static void CreateStaticOcean()
+
+        /// <summary>
+        /// [SMS.2.OCEAN] 诊断：打印 opwOcean4OPW_00 的父链 + 我们平面的状态 + 相机位置。
+        /// 只读，Info 级（每次场景绑定打一次），用于定位"为什么构造器里看不到简化海面"。
+        /// </summary>
+
+        private static string TexName(GameObject go)
         {
             try
             {
+                var mr = go.GetComponent<MeshRenderer>();
+                if (mr == null || mr.sharedMaterial == null) return "no-mat";
+                var m = mr.sharedMaterial;
+                if (!m.HasProperty("_MainTex")) return "no-prop";
+                var t = m.mainTexture;
+                return t == null ? "null" : t.name;
+            }
+            catch { return "?"; }
+        }
+
+
+        /// <summary>
+        /// [SMS.2.OCEAN] 贴图守护：换场景后运行时创建的 Texture2D 会被销毁，
+        /// 表现为平面在但 `tex=''`（白/透明）。这里按需重新加载并挂回材质。
+        /// </summary>
+        internal static void EnsureTexture()
+        {
+            try
+            {
+                if (StaticOceanMat == null) return;
+                if (StaticOceanMat.mainTexture != null) return;
+
+                var tex = LoadPng("Tileable_Ocean.png");
+                if (tex == null) return;
+                tex.wrapMode = TextureWrapMode.Repeat;
+                StaticOceanMat.mainTexture = tex;
+                StaticOceanMat.mainTextureScale = new Vector2(200f, 200f);
+                _oceanTex = tex;
+
+                if (_oceanBump == null)
+                {
+                    var bump = LoadPng("Tileable_Ocean_Bump.png");
+                    if (bump != null && StaticOceanMat.HasProperty("_BumpMap"))
+                    {
+                        bump.wrapMode = TextureWrapMode.Repeat;
+                        StaticOceanMat.SetTexture("_BumpMap", bump);
+                        _oceanBump = bump;
+                    }
+                }
+
+                HotfixLog.Info("[SMS.2.OCEAN] texture reloaded for static ocean");
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] EnsureTexture: " + e.Message); }
+        }
+
+        internal static void DiagOcean(string tag)
+        {
+            try
+            {
+                var lb = LevelBattle;
+                var root = lb != null ? lb.GetChild("opwOcean4OPW_00") : null;
+
+                if (root != null)
+                {
+                    var sb = new StringBuilder("[SMS.2.OCEAN] diag ").Append(tag).Append(": ocean '").Append(root.name).Append("' active=").Append(root.activeSelf);
+                    var t = root.transform;
+                    var chain = new StringBuilder();
+                    int guard = 0;
+                    while (t != null && guard++ < 8)
+                    {
+                        chain.Append(t.name).Append("(").Append(t.gameObject.activeSelf ? "on" : "off").Append(") < ");
+                        t = t.parent;
+                    }
+                    sb.Append(" | chain: ").Append(chain);
+                    HotfixLog.Dbg(sb.ToString());
+                }
+                else
+                {
+                    HotfixLog.Dbg("[SMS.2.OCEAN] diag " + tag + ": ocean root NOT FOUND (LevelBattle=" + (lb != null) + ")");
+                }
+
+                var so = StaticOcean;
+                if (so == null)
+                {
+                    HotfixLog.Dbg("[SMS.2.OCEAN] diag " + tag + ": StaticOcean = null");
+                }
+                else
+                {
+                    string matName = "?";
+                    bool rendererOn = false;
+                    try
+                    {
+                        var mr = so.GetComponent<MeshRenderer>();
+                        if (mr != null) { rendererOn = mr.enabled; if (mr.sharedMaterial != null) matName = mr.sharedMaterial.name; }
+                    }
+                    catch { }
+
+                    string camPos = "?";
+                    try { if (G.cam != null) camPos = G.cam.transform.position.ToString("0.#"); } catch { }
+
+                    HotfixLog.Dbg("[SMS.2.OCEAN] diag " + tag + ": plane active=" + so.activeSelf
+                                   + " pos=" + so.transform.position.ToString("0.#")
+                                   + " lossyScale=" + so.transform.lossyScale.ToString("0.##")
+                                   + " parent=" + (so.transform.parent != null ? so.transform.parent.name : "<root>")
+                                   + " layer=" + so.layer
+                                   + " renderer=" + rendererOn
+                                   + " mat='" + matName + "'"
+                                   + " tex='" + TexName(so) + "'"
+                                   + " cam=" + camPos);
+                }
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] diag: " + e.Message); }
+        }
+
+        internal static float _totalDt;
+
+        /// <summary>
+        /// [SMS.2.OCEAN] 照搬 Beta6 UpdateStaticOcean()：平面吸附相机（100 对齐）+ `_MainTex` 滚动。
+        /// 由 Patch_DayCycleAndWeather 每帧钩子调用。
+        /// </summary>
+        internal static void UpdateStaticOcean()
+        {
+            try
+            {
+                if (StaticOcean == null || !StaticOceanEnabled) return;
+                _totalDt = (_totalDt + Time.deltaTime) % 100f;
+                // ★ 海面是**世界固定**的参考平面，不跟随相机。
+                //   （跟随会让"海面相对舰船"随视点移动而滑动；duke 的 100 吸附在战斗里会跳变。）
+                //   平面尺寸 100000 ⇒ 覆盖 ±50 km，足够所有战斗区域。
+                StaticOcean.transform.position = Vector3.zero;
+                if (StaticOceanMat != null)
+                    StaticOceanMat.SetTextureOffset("_MainTex", new Vector2(_totalDt / 50f, _totalDt / 50f));
+            }
+            catch { }
+        }
+
+        internal static void CreateStaticOcean()
+        {
+            // ★ 我们自己的简化海面（观感优于 duke 的 cubeVisualizer 方案，见 docs/82 的四点问题）。
+            //   触发与调用沿用 duke 的结构（oceanType==1 时创建、StaticOceanEnabled 控制更新）。
+            try
+            {
                 if (StaticOcean != null) return;
-                if (LevelBattle == null) return;
 
                 var go = new GameObject("SMS_StaticOcean");
-                go.transform.SetParent(LevelBattle.transform, false);
-                go.transform.localPosition = Vector3.zero;
+                // 根对象（DontDestroyOnLoad 才有效），世界坐标由 OceanLoop 跟随相机
+                try { UnityEngine.Object.DontDestroyOnLoad(go); } catch { }
+
+                go.transform.position = Vector3.zero;
                 go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);   // 四边形躺平
                 go.transform.localScale = new Vector3(100000f, 100000f, 0.05f);
 
@@ -593,50 +938,56 @@ internal static class Patch_SceneManagerPreview
                 mf.sharedMesh = BuildQuadMesh();
 
                 var mr = go.AddComponent<MeshRenderer>();
-                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                mr.receiveShadows = false;
+                try { mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false; } catch { }
 
                 var shader = Shader.Find("Standard");
                 if (shader == null) shader = Shader.Find("Unlit/Texture");
-
                 var mat = new Material(shader);
-                var main = LoadPng("Tileable_Ocean.png");
-                var bump = LoadPng("Tileable_Ocean_Bump.png");
 
-                if (main != null)
+                var tex = LoadPng("Tileable_Ocean.png");
+                if (tex != null)
                 {
-                    main.wrapMode = TextureWrapMode.Repeat;
-                    if (mat.HasProperty("_MainTex")) mat.mainTexture = main;
-                    mat.mainTextureScale = new Vector2(200f, 200f);
+                    tex.wrapMode = TextureWrapMode.Repeat;
+                    if (mat.HasProperty("_MainTex")) mat.mainTexture = tex;
+                    float __tiling = TAFHotfixBatch1.HotfixParams.StaticOceanTiling;
+                    mat.mainTextureScale = new Vector2(__tiling, __tiling);
                 }
-
+                var bump = LoadPng("Tileable_Ocean_Bump.png");
                 if (bump != null && mat.HasProperty("_BumpMap"))
                 {
                     bump.wrapMode = TextureWrapMode.Repeat;
                     mat.SetTexture("_BumpMap", bump);
                 }
-
-                if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", 0.75f);
-                if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0.1f);
-                if (mat.HasProperty("_Color")) mat.SetColor("_Color", new Color(0.05f, 0.12f, 0.18f, 1f));
+                try
+                {
+                    if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", TAFHotfixBatch1.HotfixParams.StaticOceanGloss);
+                    if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", TAFHotfixBatch1.HotfixParams.StaticOceanMetallic);
+                    float __a = TAFHotfixBatch1.HotfixParams.StaticOceanAlpha;
+                    mat.color = new Color(TAFHotfixBatch1.HotfixParams.StaticOceanR, TAFHotfixBatch1.HotfixParams.StaticOceanG, TAFHotfixBatch1.HotfixParams.StaticOceanB, __a);
+                    if (__a < 0.999f)
+                    {
+                        // Standard 透明模式（Blend SrcAlpha OneMinusSrcAlpha, ZWrite Off）
+                        mat.SetOverrideTag("RenderType", "Transparent");
+                        mat.SetInt("_SrcBlend", 5);
+                        mat.SetInt("_DstBlend", 10);
+                        mat.SetInt("_ZWrite", 0);
+                        mat.DisableKeyword("_ALPHATEST_ON");
+                        mat.EnableKeyword("_ALPHABLEND_ON");
+                        mat.renderQueue = 2500;   // 早于曳光/标线等透明效果（它们约 3000）
+                    }
+                }
+                catch { }
 
                 mr.sharedMaterial = mat;
 
                 StaticOcean = go;
                 StaticOceanMat = mat;
                 StaticOceanEnabled = true;
-                PreviewInited = true;
+                _oceanTex = tex;
 
-                HotfixLog.Info("[SMS.1.OCEAN] static ocean created (tex=" + (main != null) + ", bump=" + (bump != null) + ")");
-
-                if (!_oceanLooping)
-                {
-                    _oceanLooping = true;
-                    try { MelonLoader.MelonCoroutines.Start(OceanLoop()); }
-                    catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] start loop: " + e.Message); }
-                }
+                HotfixLog.Info("[SMS.2.OCEAN] static ocean created (SMS quad path, tex=" + (tex != null) + ")");
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] CreateStaticOcean: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] CreateStaticOcean: " + e.Message); }
         }
 
         /// <summary>1x1 四边形（朝 +Z，旋转 90° 后躺平）。</summary>
@@ -668,6 +1019,33 @@ internal static class Patch_SceneManagerPreview
 
                 try
                 {
+                    // Simple 模式：每帧确保"通用海面关、我们的平面开"
+                    // （构造器场景在进入时会把 opwOcean4OPW_00 重新激活，只在绑定时机处理会漏掉）
+                    int __ot2 = 0;
+                    try { __ot2 = global::TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+                    if (__ot2 == 1)
+                    {
+                        try
+                        {
+                            if (_oceanRoot == null)
+                            {
+                                var lb2 = LevelBattle;
+                                if (lb2 != null) _oceanRoot = lb2.GetChild("opwOcean4OPW_00");
+                            }
+                            if (_oceanRoot != null && _oceanRoot.activeSelf)
+                            {
+                                _oceanRoot.SetActive(false);
+                                HotfixLog.Dbg("[SMS.2.OCEAN] simple: re-hide ocean root");
+                            }
+                        }
+                        catch { }
+
+                        if (StaticOcean != null && !StaticOcean.activeSelf)
+                            StaticOcean.SetActive(true);
+
+                        EnsureTexture();
+                    }
+
                     if (!StaticOceanEnabled || StaticOcean == null) continue;
 
                     _oceanDt = (_oceanDt + Time.deltaTime) % 100f;
@@ -687,7 +1065,7 @@ internal static class Patch_SceneManagerPreview
         }
 
         /// <summary>
-        /// [SMS.1.OCEAN] 静态海面可行性探针：打印 LevelBattle 下海面对象的组件/材质/贴图信息。
+        /// [SMS.2.OCEAN] 静态海面可行性探针：打印 LevelBattle 下海面对象的组件/材质/贴图信息。
         ///
         /// 背景：duke 的"静态海面"是**降质替代方案**（低质量海水渲染）。
         /// 我们这版没有 `OceanFFT` 对象（探针显示是 `opwOcean4OPW_00`），
@@ -698,11 +1076,68 @@ internal static class Patch_SceneManagerPreview
         /// </summary>
 
         /// <summary>
-        /// [SMS.1.OCEAN] 按 Ocean Type 设置海面模式：
+        /// [SMS.2.OCEAN] 按 Ocean Type 设置海面模式：
         ///   0 = 默认（原版 FFT 海面，若之前建了静态海面则销毁）
         ///   1 = 静态海面（由 CreateStaticOcean 负责）
         ///   2 = 无海面（隐藏静态海面；原版海面本身在构造器里已 scale=0 的占位对象不影响）
         /// </summary>
+
+        // ======================================================================
+        //  [SMS.2.OCEAN] 空水 = **照搬 duke 的 `taf_disable_all_water` 行为**
+        //  来源：duke `TweaksAndFixes/Harmony/GameManager.cs`（ToMainMenuCoroutine，我们已有同段代码）
+        //        if (Config.Param("taf_disable_all_water", 0) == 1)
+        //        {
+        //            LevelBattle.GetChild("opwOcean4OPW_00").active = false;
+        //            LevelConstructor.GetChild("MoveWithShip").active = false;
+        //            waterHC/BC/MC/SC.active = false;      // 4 个船渠水
+        //        }
+        //  我们此前只关了 oceanFFT，没关这些 ⇒ 空水模式仍有水/波光。
+        // ======================================================================
+        private static readonly string[] DockWaterNames =
+        {
+            "water_in_huge_dock_002", "water_in_big_dock_002",
+            "water_in_middle_dock_002", "water_in_smoll_dock_002",
+        };
+
+        private static GameObject RootOf(GameObject level, string child)
+        {
+            try { return level != null ? level.transform.Find(child)?.gameObject : null; } catch { return null; }
+        }
+
+        internal static void ApplyDukeAllWater(bool disable)
+        {
+            try
+            {
+                var battle = LevelBattle;
+                var ctor = LevelConstructor;
+
+                var oceanRoot = RootOf(battle, "opwOcean4OPW_00");
+                if (oceanRoot != null) { oceanRoot.SetActive(!disable); HotfixLog.Dbg("[SMS.2.OCEAN] opwOcean4OPW_00 active=" + (!disable)); }
+
+                var moveWithShip = RootOf(ctor, "MoveWithShip");
+                if (moveWithShip != null) { moveWithShip.SetActive(!disable); HotfixLog.Dbg("[SMS.2.OCEAN] MoveWithShip active=" + (!disable)); }
+
+                // 船渠水：duke 建在 Dock/DryDock_001 下
+                GameObject dock = null;
+                try { dock = ctor != null ? ctor.transform.Find("Dock/DryDock_001")?.gameObject : null; } catch { }
+
+                int n = 0;
+                if (dock != null)
+                {
+                    for (int i = 0; i < DockWaterNames.Length; i++)
+                    {
+                        var tr = dock.transform.Find(DockWaterNames[i]);
+                        if (tr == null) continue;
+                        tr.gameObject.SetActive(!disable);
+                        n++;
+                    }
+                }
+
+                HotfixLog.Info("[SMS.2.OCEAN] ApplyDukeAllWater disable=" + disable + " dockWater=" + n);
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] ApplyDukeAllWater: " + e.Message); }
+        }
+
         internal static readonly System.Collections.Generic.List<GameObject> _disabledForNone
             = new System.Collections.Generic.List<GameObject>();
 
@@ -723,15 +1158,45 @@ internal static class Patch_SceneManagerPreview
                     if (fft != null && fft.gameObject != null)
                     {
                         fft.gameObject.SetActive(wantVanilla);
-                        HotfixLog.Info("[SMS.1.OCEAN] vanilla FFT ocean -> active=" + wantVanilla);
+                        HotfixLog.Dbg("[SMS.2.OCEAN] vanilla FFT ocean -> active=" + wantVanilla);
                     }
-                    else HotfixLog.Warn("[SMS.1.OCEAN] oceanFFT is null (cannot toggle vanilla ocean)");
+                    else HotfixLog.Warn("[SMS.2.OCEAN] oceanFFT is null (cannot toggle vanilla ocean)");
                 }
 
                 // ---- 2) 我们的静态平面 ----
                 if (wantStatic)
                 {
-                    CreateStaticOcean();
+                    // ★ Simple：只关通用海面（duke 写法），船渠水/MoveWithShip 保持
+                    try
+                    {
+                        var lb = LevelBattle;
+                        if (lb != null)
+                        {
+                            var oceanRoot = lb.GetChild("opwOcean4OPW_00");
+                            if (oceanRoot != null) { oceanRoot.active = false; }
+                        }
+                        var lc = LevelConstructor;
+                        if (lc != null)
+                        {
+                            var mws = lc.GetChild("MoveWithShip");
+                            if (mws != null) mws.active = true;
+                        }
+                        HotfixLog.Dbg("[SMS.2.OCEAN] simple: ocean root off");
+                    }
+                    catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] simple: " + e.Message); }
+
+                    // ★ 每次场景绑定都要重建（构造器/共享设计是不同场景，主菜单建的平面不会跟过来）
+                    if (StaticOcean == null)
+                        CreateStaticOcean();
+                    else
+                    {
+                        try
+                        {
+                            if (!StaticOcean.activeSelf) StaticOcean.SetActive(true);
+                            StaticOcean.transform.localScale = new Vector3(100000f, 100000f, 0.05f);
+                        }
+                        catch { }
+                    }
                 }
                 else if (StaticOcean != null)
                 {
@@ -739,20 +1204,36 @@ internal static class Patch_SceneManagerPreview
                     StaticOcean = null;
                     StaticOceanMat = null;
                     StaticOceanEnabled = false;
-                    HotfixLog.Info("[SMS.1.OCEAN] static ocean removed (mode=" + mode + ")");
+                    HotfixLog.Dbg("[SMS.2.OCEAN] static ocean removed (mode=" + mode + ")");
                 }
 
                 // ---- 3) None 模式：关掉"船渠里的水"与"水下光效/雾" ----
+                // ★ 只有 None（空水）才走 duke 的整组关闭；
+                //   Simple 绝不能调用它——它会把 opwOcean4OPW_00 重新打开（port92/98 的干扰源）。
+                // ★ port92 的分叉方案：默认**不启用**（现由 GameManager 的 __oceanMode 分支统一负责）。
+                //   需要对照实验时设 ocean_duke_all_water=1。
+                if (global::TAFHotfixBatch1.HotfixParams.OceanDukeAllWater)
+                {
+                    if (wantNone) ApplyDukeAllWater(true);
+                    else if (wantVanilla) ApplyDukeAllWater(false);
+                }
+
+
+
                 if (wantNone)
                 {
                     DisableWaterAndUnderwaterEffects();
+                    // ⚠️ 守夜人方案在 port90 里被证实会误伤船体（waterline 等），默认关闭，仅作实验保留。
+                    if (global::TAFHotfixBatch1.HotfixParams.OceanKeeper)
+                        OceanNoneKeeper.EnsureRunning();
                 }
                 else
                 {
                     RestoreWaterAndUnderwaterEffects();
                 }
+                DiagOcean("after SetOceanMode mode=" + mode);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] SetOceanMode: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] SetOceanMode: " + e.Message); }
         }
 
         /// <summary>None 模式：关闭船渠水面 + 水下光效/雾。</summary>
@@ -783,9 +1264,15 @@ internal static class Patch_SceneManagerPreview
                             try { if (mr.sharedMaterial != null) matName = mr.sharedMaterial.name; } catch { }
                             try { if (mr.sharedMaterial != null && mr.sharedMaterial.shader != null) shaderName = mr.sharedMaterial.shader.name; } catch { }
 
-                            string all3 = (goName + "|" + matName + "|" + shaderName).ToLowerInvariant();
-                            bool isWater = all3.Contains("water") || all3.Contains("ocean") || all3.Contains("sea")
-                                        || all3.Contains("wave") || all3.Contains("pool") || all3.Contains("harbor");
+                            // ★ 3.22.0-SMS.2：**废弃按关键字模糊匹配**。
+                            //   历史上用 "water/ocean/sea/..." 匹配曾误伤舰船的 waterline 材质
+                            //   （Pola/Zara/Fiume 冷启动 NRE）。现在只用**已知名称白名单**。
+                            string gn = goName.ToLowerInvariant();
+                            bool isWater = gn.StartsWith("opwocean4opw_00")
+                                        || gn.StartsWith("water_in_")
+                                        || gn.StartsWith("water_all_")
+                                        || gn.StartsWith("drydock_water")
+                                        || gn == "water_all_001";
 
                             if (!isWater) continue;
 
@@ -793,7 +1280,7 @@ internal static class Patch_SceneManagerPreview
                             try { if (StaticOcean != null && mr.gameObject == StaticOcean) continue; } catch { }
 
                             if (_debugLog++ < 40)
-                                HotfixLog.Info("[SMS.1.OCEAN] water candidate: go='" + goName
+                                HotfixLog.Dbg("[SMS.2.OCEAN] water candidate: go='" + goName
                                                + "' mat='" + matName + "' shader='" + shaderName + "'");
 
                             mr.gameObject.SetActive(false);
@@ -802,7 +1289,7 @@ internal static class Patch_SceneManagerPreview
                         }
                     }
                 }
-                catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] scan water: " + e.Message); }
+                catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] scan water: " + e.Message); }
 
                 // 反射探针（"水面反光"观感的主要来源之一）
                 try
@@ -824,10 +1311,47 @@ internal static class Patch_SceneManagerPreview
                 // 全局雾
                 try { RenderSettings.fog = false; } catch { }
 
-                HotfixLog.Info("[SMS.1.OCEAN] none mode: scanned=" + scanned + " waterHidden=" + hidden
+                try { LogNoneCandidates("after-hide"); } catch { }
+                HotfixLog.Dbg("[SMS.2.OCEAN] none mode: scanned=" + scanned + " waterHidden=" + hidden
                                + " totalDisabled=" + _disabledForNone.Count);
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] DisableWater: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] DisableWater: " + e.Message); }
+        }
+
+        // [SMS.2.OCEAN] none-mode: list candidate water/fog renderers (log only, no modification)
+        private static bool _noneScanLogged;
+
+        internal static void LogNoneCandidates(string tag)
+        {
+            if (_noneScanLogged) return;
+            _noneScanLogged = true;
+            try
+            {
+                int n = 0;
+                foreach (var mr in UnityEngine.Object.FindObjectsOfType<MeshRenderer>())
+                {
+                    if (mr == null) continue;
+                    string gn = "", mn = "", sn = "";
+                    try { gn = mr.gameObject.name; } catch { }
+                    try { if (mr.sharedMaterial != null) mn = mr.sharedMaterial.name; } catch { }
+                    try { if (mr.sharedMaterial != null && mr.sharedMaterial.shader != null) sn = mr.sharedMaterial.shader.name; } catch { }
+                    string all = (gn + "|" + mn + "|" + sn).ToLowerInvariant();
+                    if (!(all.Contains("water") || all.Contains("ocean") || all.Contains("sea")
+                          || all.Contains("wave") || all.Contains("fog") || all.Contains("underwater")
+                          || all.Contains("mist") || all.Contains("haze")))
+                        continue;
+
+                    Bounds b = default;
+                    try { b = mr.bounds; } catch { }
+                    HotfixLog.Info("[SMS.2.OCEAN] none-candidate(" + tag + ") go='" + gn
+                                   + "' mat='" + mn + "' shader='" + sn
+                                   + "' active=" + mr.gameObject.activeInHierarchy
+                                   + " bounds{" + b.center + " | " + b.size + "}");
+                    if (++n >= 40) break;
+                }
+                HotfixLog.Info("[SMS.2.OCEAN] none-candidate scan done: " + n);
+            }
+            catch (System.Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] none-candidate: " + e.Message); }
         }
 
         private static int _debugLog;
@@ -843,7 +1367,7 @@ internal static class Patch_SceneManagerPreview
                 }
                 _disabledForNone.Clear();
                 try { RenderSettings.fog = true; } catch { }
-                HotfixLog.Info("[SMS.1.OCEAN] restored water/fog objects");
+                HotfixLog.Dbg("[SMS.2.OCEAN] restored water/fog objects");
             }
             catch { }
         }
@@ -853,7 +1377,7 @@ internal static class Patch_SceneManagerPreview
             try
             {
                 var lb = Patch_SceneManagerPreview.LevelBattle;
-                if (lb == null) { HotfixLog.Info("[SMS.1.OCEAN] LevelBattle=null"); return; }
+                if (lb == null) { HotfixLog.Dbg("[SMS.2.OCEAN] LevelBattle=null"); return; }
 
                 var tr = lb.transform;
                 for (int i = 0; i < tr.childCount; i++)
@@ -865,7 +1389,7 @@ internal static class Patch_SceneManagerPreview
                         continue;
 
                     var sb = new StringBuilder();
-                    sb.Append("[SMS.1.OCEAN] ocean obj '").Append(nm).Append("'")
+                    sb.Append("[SMS.2.OCEAN] ocean obj '").Append(nm).Append("'")
                       .Append(" pos=").Append(c.position.ToString("0.#"))
                       .Append(" scale=").Append(c.lossyScale.ToString("0.##"));
 
@@ -887,13 +1411,13 @@ internal static class Patch_SceneManagerPreview
                         catch { }
                     }
 
-                    HotfixLog.Info(sb.ToString());
+                    HotfixLog.Dbg(sb.ToString());
                 }
 
                 var dcw = Patch_SceneManagerPreview.DayCycleAndWeatherO;
-                HotfixLog.Info("[SMS.1.OCEAN] DayCycleAndWeather=" + (dcw != null ? dcw.name : "null"));
+                HotfixLog.Dbg("[SMS.2.OCEAN] DayCycleAndWeather=" + (dcw != null ? dcw.name : "null"));
             }
-            catch (Exception e) { HotfixLog.Warn("[SMS.1.OCEAN] probe: " + e.Message); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] probe: " + e.Message); }
         }
 
     /// <summary>切换"预览模式"（见上）。未初始化时为空操作。</summary>
@@ -918,7 +1442,7 @@ internal static class Patch_SceneManagerPreview
         }
         catch (Exception e)
         {
-            HotfixLog.Warn("[SMS.1.SCENE] ConfigureForPreview: " + e.Message);
+            HotfixLog.Warn("[SMS.2.SCENE] ConfigureForPreview: " + e.Message);
         }
     }
 
@@ -926,3 +1450,116 @@ internal static class Patch_SceneManagerPreview
 }
 
 #endif
+
+    // ======================================================================
+    //  [SMS.2.REFL] 反射探针强度（移植 Beta6 Patch_SceneManager/ConfigureScene）
+    //    构造器/预览：taf_constructor_reflection_intensity（默认 1.5）
+    //    战斗场景  ：taf_battle_reflection_intensity（默认 0.5）
+    //  反射强度直接影响弧形舯段的色调；缺失时会出现"某些段颜色与其它段不同"。
+    // ======================================================================
+    internal static class ReflectionIntensity
+    {
+        internal static ReflectionProbe Probe;
+
+        internal static void Apply(bool battle)
+        {
+            try
+            {
+                if (Probe == null)
+                {
+                    var probes = UnityEngine.Object.FindObjectsOfType<ReflectionProbe>();
+                    if (probes != null && probes.Length > 0)
+                        Probe = probes[0];
+                }
+
+                if (Probe == null)
+                {
+                    HotfixLog.Warn("[SMS.2.REFL] no ReflectionProbe found");
+                    return;
+                }
+
+                float def = battle ? 0.5f : 1.5f;
+                float v = global::TweaksAndFixes.Config.Param(battle ? "taf_battle_reflection_intensity"
+                                             : "taf_constructor_reflection_intensity", def);
+
+                Probe.intensity = v;
+                HotfixLog.Dbg("[SMS.2.REFL] probe='" + Probe.name
+                               + "' battle=" + battle + " intensity=" + v.ToString("0.##"));
+            }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.REFL] apply: " + e.Message); }
+        }
+    }
+
+// ======================================================================
+//  [SMS.2.OCEAN] None 模式"守夜人"：周期性把水面类 renderer 关掉。
+//
+//  背景：oceanType=None 时我们在场景绑定时关了水，但之后水面对象会被重建/重新激活
+//  （主菜单、设计模式、战斗加载都可能），所以表现成"水又回来了"。
+//  做法：每 1 秒扫一次场景，把名字/材质/shader 含 water/ocean/sea/wave/pool/basin/canal/harbour
+//  的 MeshRenderer 关掉（跳过我们自己的 StaticOcean）。
+// ======================================================================
+internal static class OceanNoneKeeper
+{
+    private static bool _running;
+    internal static int Disabled;
+
+    internal static void EnsureRunning()
+    {
+        if (_running) return;
+        _running = true;
+        try { MelonLoader.MelonCoroutines.Start(Loop()); }
+        catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] keeper start: " + e.Message); }
+    }
+
+    private static System.Collections.IEnumerator Loop()
+    {
+        int logged = 0;
+        while (true)
+        {
+            for (int i = 0; i < 60; i++) yield return null;   // ~1 秒
+
+            try
+            {
+                int ot = 0;
+                try { ot = TweaksAndFixes.UiM.TAF_Settings.settings.oceanType; } catch { }
+                if (ot != 2) continue;
+
+                var all = UnityEngine.Object.FindObjectsOfType<MeshRenderer>();
+                if (all == null) continue;
+
+                for (int k = 0; k < all.Length; k++)
+                {
+                    var mr = all[k];
+                    if (mr == null || !mr.gameObject.activeSelf) continue;
+
+                    string blob = "";
+                    try { blob += mr.gameObject.name; } catch { }
+                    try { if (mr.sharedMaterial != null) blob += "|" + mr.sharedMaterial.name; } catch { }
+                    try { if (mr.sharedMaterial != null && mr.sharedMaterial.shader != null) blob += "|" + mr.sharedMaterial.shader.name; } catch { }
+                    blob = blob.ToLowerInvariant();
+
+                    if (blob.Contains("waterline") || blob.Contains("hull") || blob.Contains("ship")) continue;
+
+                    if (!(blob.Contains("water") || blob.Contains("ocean") || blob.Contains("sea")
+                          || blob.Contains("wave") || blob.Contains("pool") || blob.Contains("basin")
+                          || blob.Contains("canal") || blob.Contains("harbour") || blob.Contains("harbor")))
+                        continue;
+
+                    try
+                    {
+                        if (global::TweaksAndFixes.Patch_SceneManagerPreview.StaticOcean != null &&
+                            mr.gameObject == global::TweaksAndFixes.Patch_SceneManagerPreview.StaticOcean) continue;
+                    }
+                    catch { }
+
+                    if (logged++ < 25)
+                        HotfixLog.Info("[SMS.2.OCEAN] keeper off '" + blob + "'");
+
+                    mr.gameObject.SetActive(false);
+                    Disabled++;
+                }
+            }
+            catch { }
+        }
+    }
+}

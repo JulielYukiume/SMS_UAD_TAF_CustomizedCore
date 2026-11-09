@@ -2233,7 +2233,7 @@ namespace TweaksAndFixes
 
 
 
-        // ★ [SMS.1.SCENE] 预览/分段 UI 的"预览模式"成对钩子（移植自 Beta6 Patch_Ui）。
+        // ★ [SMS.2.SCENE] 预览/分段 UI 的"预览模式"成对钩子（移植自 Beta6 Patch_Ui）。
         //   依赖 Patch_SceneManager.ConfigureForPreview —— 未移植静态海面前它是空操作。
 
         [HarmonyPrefix]
@@ -2265,7 +2265,7 @@ namespace TweaksAndFixes
         }
 
 
-        // ★ [SMS.1.SCENE] 舰船预览图生成期间切换"预览模式"（移植自 Beta6 Patch_Ui）
+        // ★ [SMS.2.SCENE] 舰船预览图生成期间切换"预览模式"（移植自 Beta6 Patch_Ui）
         [HarmonyPrefix]
         [HarmonyPatch(nameof(Ui.GetShipPreviewTexGeneric))]
         internal static void Prefix_ShipPreviewScene(Ui __instance)

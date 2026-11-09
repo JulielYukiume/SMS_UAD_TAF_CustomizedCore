@@ -43,7 +43,7 @@ namespace TweaksAndFixes
         internal static void Postfix_RefreshDecor(Ship __instance)
         {
             if (_rdCalls++ < 5)
-                HotfixLog.Info("[SMS.1.PROP] Postfix_RefreshDecor called (n=" + _rdCalls + ")");
+                HotfixLog.Dbg("[SMS.2.PROP] Postfix_RefreshDecor called (n=" + _rdCalls + ")");
             if (__instance == null) return;
 
             try
@@ -90,6 +90,15 @@ namespace TweaksAndFixes
 
                     var decBounds = dec.bounds;
                     Vector3 size = decBounds.size;
+
+                    // ★ 合理性检查（2026-11-03）：
+                    //   `dec.bounds` 在部分装饰/早期阶段为默认值（size≈0），
+                    //   直接参与相交判定会命中所有部件 ⇒ 装饰物被"全隐"。
+                    //   这里跳过异常 bounds，只对"真实尺寸"的装饰做碰撞隐藏。
+                    float mag = size.sqrMagnitude;
+                    if (mag < 1e-4f) continue;                 // 尺寸为零：跳过（保持可见）
+                    if (size.x > 200f || size.y > 200f || size.z > 200f) continue;  // 明显异常：跳过
+
                     size.Scale(dec.maxOverlapSizeBox);
                     overlap = new Bounds(dec.transform.position, size);
 
@@ -366,3 +375,43 @@ namespace TweaksAndFixes
         }
     }
 }
+
+    /// <summary>
+    /// [SMS.2.RH] 吞掉 `Decor.Awake` 抛出的 `InvalidOperationException: Sequence contains no elements`。
+    ///
+    /// 原因：原版 `Decor.Awake` 里有 `Enumerable.Aggregate(...)`，当装饰物在 Awake 时
+    /// **还没有任何子渲染器**（主菜单封面船、预制体预热的常见情形）就会抛异常。
+    /// 这属于原版缺陷，异常会以 ERROR 级别刷屏（每个装饰物一次）。
+    ///
+    /// 用 Harmony **Finalizer** 只"清除异常"，不改变 Awake 已完成的任何工作：
+    ///   · 装饰物该注册的已经注册（异常发生在 Awake 末尾的 Aggregate 处）；
+    ///   · 不需要像 `decor_awake_guard` 那样整段替代原版（那会丢初始化）。
+    /// 开关：`decor_awake_swallow`（默认 1）。
+    /// </summary>
+    [HarmonyPatch(typeof(Decor), "Awake")]
+    internal static class Patch_Decor_Awake_Finalizer
+    {
+        internal static int Swallowed;
+
+        private static string SafeName(Decor d)
+        {
+            try { return d != null ? d.gameObject.name : "?"; } catch { return "?"; }
+        }
+
+        [HarmonyFinalizer]
+        internal static Exception Finalizer(Decor __instance, Exception __exception)
+        {
+            if (__exception == null) return null;
+            try
+            {
+                if (!global::TAFHotfixBatch1.HotfixParams.DecorAwakeSwallow) return __exception;
+                Swallowed++;
+                if (Swallowed <= 3)
+                    global::TAFHotfixBatch1.HotfixLog.Dbg("[SMS.2.RH] Decor.Awake exception swallowed (" + Swallowed + "): "
+                        + __exception.GetType().Name
+                        + " on '" + SafeName(__instance) + "'");
+                return null;
+            }
+            catch { return __exception; }
+        }
+    }

@@ -19,7 +19,9 @@ namespace TweaksAndFixes
         
             if (!__instance.shipsPerType.ContainsKey(shipType.name))
             {
-                Melon<TweaksAndFixes>.Logger.Error($"{player.Name(false)} has no valid predefined designs of type {shipType.nameUi}! Either fill the predef file with this shiptype or enable `taf_force_no_predef_designs`.");
+                int yr = 0;
+                try { yr = CampaignController.Instance.CurrentDate.AsDate().Year; } catch { }
+                Melon<TweaksAndFixes>.Logger.Msg($"[SMS.2.G2][predef] no design for {player.Name(false)} type={shipType.nameUi} year={yr}: no pack in the chain provided this shiptype for that year (fallback will handle it; this is informational).");
                 return false;
             }
 

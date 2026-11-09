@@ -235,7 +235,7 @@ namespace TAFHotfixBatch1.Modules
                         {
                             d.id = Il2CppSystem.Guid.NewGuid();
                             reid++;
-                            HotfixLog.Error("[SMS.1.C][repair] duplicate design id " + did + " ('" + N(d) + "') -> re-id " + d.id);
+                            HotfixLog.Warn("[SMS.1.C][repair] duplicate design id " + did + " ('" + N(d) + "') -> re-id " + d.id);
                         }
                         else
                         {

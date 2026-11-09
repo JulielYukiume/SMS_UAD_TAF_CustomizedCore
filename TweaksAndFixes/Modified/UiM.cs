@@ -874,6 +874,176 @@ namespace TweaksAndFixes
             }));
         }
 
+
+        /// <summary>
+        /// [SMS.2.UI] 提示"需要重启"（用于海水模式 / 预定义设计 / 共享设计三项，它们只在启动时读取）。
+        /// 复用游戏自带 `G.ui.ShowMessage(text, ok)`。
+        /// </summary>
+
+        /// <summary>[SMS.2.UI] 是否处于战役（主菜单/共享设计/构造器预览都不应显示"预定义/共享设计使用"）。</summary>
+        private static bool InCampaign()
+        {
+            try { return Patch_SceneManager.sceneState == GameManager.GameState.World; } catch { return false; }
+        }
+
+
+
+
+
+        /// <summary>[SMS.2.UI] 打印 General 页每一行的结构：子物体名、Toggle 数、是否有 ToggleGroup、文本内容。</summary>
+        private static void DumpGeneralRows(GameObject content)
+        {
+            try
+            {
+                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] === General rows dump ===");
+                int n = content.transform.childCount;
+                for (int i = 0; i < n; i++)
+                {
+                    var row = content.transform.GetChild(i);
+                    if (row == null) continue;
+
+                    int toggles = 0;
+                    bool group = false;
+                    string texts = "";
+                    foreach (var t in row.GetComponentsInChildren<Toggle>(true)) toggles++;
+                    foreach (var g in row.GetComponentsInChildren<ToggleGroup>(true)) group = true;
+                    foreach (var t in row.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+                    {
+                        if (t != null && !string.IsNullOrEmpty(t.text)) texts += "[" + t.text + "] ";
+                    }
+
+                    global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]   [" + i + "] '" + row.name + "' childs=" + row.childCount
+                                   + " toggles=" + toggles + " group=" + group + " texts=" + texts);
+                    for (int k = 0; k < row.childCount && k < 6; k++)
+                    {
+                        var c = row.GetChild(k);
+                        if (c == null) continue;
+                        global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]       - '" + c.name + "' childs=" + c.childCount);
+
+                        // 对 Options 容器：打印每个按钮的名字与组件类型
+                        if (c.childCount > 1)
+                        {
+                            for (int m = 0; m < c.childCount; m++)
+                            {
+                                var b = c.GetChild(m);
+                                if (b == null) continue;
+                                string comps = "n/a";
+                                string txt = "";
+                                foreach (var t2 in b.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+                                    if (t2 != null && !string.IsNullOrEmpty(t2.text)) txt += "[" + t2.text + "] ";
+                                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]           btn[" + m + "] '" + b.name
+                                    + "' comps=" + comps + " text=" + txt);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] dump rows: " + e.Message); }
+        }
+
+
+        /// <summary>[SMS.2.UI] 找出选项窗口里所有 UnityEngine.UI.Text 及其字体（自建行需要复用字体）。</summary>
+        private static void DumpUiFonts(GameObject root)
+        {
+            try
+            {
+                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] === UI.Text / font dump ===");
+                int shown = 0;
+                foreach (var t in root.GetComponentsInChildren<UnityEngine.UI.Text>(true))
+                {
+                    if (t == null) continue;
+                    string font = "-";
+                    try { if (t.font != null) font = t.font.name; } catch { }
+                    global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] TEXT '" + PathOf(t.transform)
+                        + "' font='" + font + "' text='" + (t.text ?? "") + "'");
+                    if (++shown >= 40) break;
+                }
+                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] UI.Text total shown=" + shown);
+            }
+            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] font dump: " + e.Message); }
+        }
+
+        private static string PathOf(Transform t)
+        {
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                int guard = 0;
+                while (t != null && guard++ < 5)
+                {
+                    if (sb.Length > 0) sb.Insert(0, "/");
+                    sb.Insert(0, t.name);
+                    t = t.parent;
+                }
+                return sb.ToString();
+            }
+            catch { return "?"; }
+        }
+
+
+        /// <summary>[SMS.2.UI] 加宽 Label 的 RectTransform，避免长词折行（不改字体/不改控件类型）。</summary>
+        private static void WidenLabel(GameObject labelGo, float factor = 2.0f)
+        {
+            try
+            {
+                if (labelGo == null) return;
+                var rt = labelGo.GetComponent<RectTransform>();
+                if (rt == null) return;
+                var d = rt.sizeDelta;
+                rt.sizeDelta = new Vector2(d.x * factor, d.y);
+            }
+            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] WidenLabel: " + e.Message); }
+        }
+
+
+        private static readonly System.Collections.Generic.List<GameObject> _campaignRows = new();
+        private static TMP_Dropdown _predefDd;
+        private static TMP_Dropdown _sharedDd;
+        private static bool _campaignRowsActive;
+
+        /// <summary>[SMS.2.UI] 按当前场景切换"仅战役可见"的设置行（预定义/共享设计使用）。</summary>
+        /// <summary>[SMS.2.UI] 按档内实际状态回填"预定义/共享设计使用"下拉框。</summary>
+        private static void SyncCampaignRowValues()
+        {
+            try
+            {
+                var cc = CampaignController.Instance;
+                if (cc == null) return;
+                if (_predefDd != null) _predefDd.SetValue((int)cc.designsUsage, false);
+                if (_sharedDd != null) _sharedDd.SetValue((int)cc.SharedDesignsUsage, false);
+            }
+            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] sync rows: " + e.Message); }
+        }
+
+        internal static void RefreshCampaignRows()
+        {
+            try
+            {
+                bool inCamp = Patch_SceneManager.sceneState == GameManager.GameState.World;
+                for (int i = 0; i < _campaignRows.Count; i++)
+                {
+                    var r = _campaignRows[i];
+                    if (r != null && r.activeSelf != inCamp) r.SetActive(inCamp);
+                }
+
+                // 从"不可见 -> 可见"的时刻，按档内实际状态回填下拉框（含读档后）
+                if (inCamp && !_campaignRowsActive) SyncCampaignRowValues();
+                _campaignRowsActive = inCamp;
+            }
+            catch { }
+        }
+
+        public static void ShowRestartRequired()
+        {
+            try
+            {
+                string hdr = LocalizeManager.Localize("$TAF_Ui_Settings_RestartRequiredHeader");
+                string body = LocalizeManager.Localize("$TAF_Ui_Settings_RestartRequiredBody");
+                G.ui.ShowMessage(hdr + "\n" + body, null);
+            }
+            catch (Exception e) { Melon<TweaksAndFixes>.Logger.Warning("ShowRestartRequired: " + e.Message); }
+        }
+
         public static void AddConfirmPopupToButton(Button button, string? text = default, System.Action? before = null, System.Action? after = null, bool invokeOnYes = true, bool invokeOnNo = false)
         {
             if (button.onClick.PrepareInvoke().Count == 1)
@@ -3512,6 +3682,7 @@ namespace TweaksAndFixes
             refitDateFormat.transform.SetParent(GeneralOptionsContent);
             refitDateFormat.transform.SetScale(1, 1, 1);
             SetLocalizedTextTag(refitDateFormat.GetChild("Label"), "$TAF_Ui_Settings_RefitDateFormat");
+                  WidenLabel(refitDateFormat.GetChild("Label"));
 
             TMP_Dropdown dropdown = refitDateFormat.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
             dropdown.ClearOptions();
@@ -3536,6 +3707,7 @@ namespace TweaksAndFixes
                   oceanType.transform.SetParent(GeneralOptionsContent);
                   oceanType.transform.SetScale(1, 1, 1);
                   SetLocalizedTextTag(oceanType.GetChild("Label"), "$TAF_Ui_Settings_OceanTypeDropdown");
+                  WidenLabel(oceanType.GetChild("Label"));
 
                   TMP_Dropdown od = oceanType.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
                   od.ClearOptions();
@@ -3549,8 +3721,10 @@ namespace TweaksAndFixes
                       SetSaveSettingsButtonActive();
                       Melon<TweaksAndFixes>.Logger.Msg($"Set Ocean Type: {oOptions[i]} (#{i})");
                       TAF_Settings.settings.oceanType = i;
+                      ShowRestartRequired();
                   }));
                   od.SetValue(TAF_Settings.settings.oceanType, false);
+                   if (global::TAFHotfixBatch1.HotfixParams.UiDumpGeneral) { DumpGeneralRows(GeneralOptionsContent); DumpUiFonts(SettingsRoot); }
               }
 
               {
@@ -3559,6 +3733,7 @@ namespace TweaksAndFixes
                   predefMode.transform.SetParent(GeneralOptionsContent);
                   predefMode.transform.SetScale(1, 1, 1);
                   SetLocalizedTextTag(predefMode.GetChild("Label"), "$TAF_Ui_Settings_PredefModeDropdown");
+                  WidenLabel(predefMode.GetChild("Label"));
 
                   TMP_Dropdown pd = predefMode.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
                   pd.ClearOptions();
@@ -3579,6 +3754,8 @@ namespace TweaksAndFixes
                       catch { }
                   }));
                   pd.SetValue(0, false);
+                  _predefDd = pd;
+                  _campaignRows.Add(predefMode);
               }
 
               {
@@ -3587,6 +3764,7 @@ namespace TweaksAndFixes
                   sharedMode.transform.SetParent(GeneralOptionsContent);
                   sharedMode.transform.SetScale(1, 1, 1);
                   SetLocalizedTextTag(sharedMode.GetChild("Label"), "$TAF_Ui_Settings_SharedModeDropdown");
+                  WidenLabel(sharedMode.GetChild("Label"));
 
                   TMP_Dropdown sd = sharedMode.GetChild("Campaign Dropdown").GetComponent<TMP_Dropdown>();
                   sd.ClearOptions();
@@ -3607,6 +3785,8 @@ namespace TweaksAndFixes
                       catch { }
                   }));
                   sd.SetValue(0, false);
+                  _sharedDd = sd;
+                  _campaignRows.Add(sharedMode);
               }
 
 

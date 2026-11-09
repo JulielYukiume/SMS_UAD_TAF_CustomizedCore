@@ -11,22 +11,39 @@ namespace TAFHotfixBatch1
     /// </summary>
     internal static class HotfixLog
     {
-        private const string FileName = "TAFHotfix-Batch1.log";
+        /// <summary>仅在 `verbose=1` 时输出的调试日志（默认静默）。</summary>
+        internal static void Dbg(string msg)
+        {
+            if (!HotfixParams.Verbose) return;   // Dbg 仍受 verbose 控制（输出为 INFO 级）
+            try { if (HotfixParams.Verbose) Info("[DBG] " + msg); } catch { }
+        }
+
+        private const string FileName = "SMS_UAD_TAF_SMS2.log";
         private static readonly List<string> _pending = new List<string>();
         private static string _path;
         private static bool _ready;
 
         internal static void Init()
         {
+            // ★ 不再在启动时创建 Logs 目录：`log_no_file=1`（默认）时不应产生任何痕迹。
+            //   目录与文件都在第一次真正写入时才懒创建（见 EnsureFile）。
+            _ready = true;
+        }
+
+        /// <summary>按需创建 Logs 目录与文件路径（仅在允许写文件时）。</summary>
+        private static bool EnsureFile()
+        {
+            if (_path != null) return true;
             try
             {
+                if (HotfixParams.LogNoFile) return false;
                 string root = AppContext.BaseDirectory;
                 _path = Path.Combine(root, "Logs", FileName);
                 string dir = Path.GetDirectoryName(_path);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                _ready = true;
+                return true;
             }
-            catch { _ready = false; }
+            catch { _path = null; return false; }
         }
 
         internal static void Info(string msg) { Write("INFO ", msg); }
@@ -47,7 +64,8 @@ namespace TAFHotfixBatch1
 
         private static void Write(string level, string msg)
         {
-            string line = DateTime.Now.ToString("HH:mm:ss.fff") + " [" + level + "] " + msg;
+            // MelonLoader 自带 "[HH:mm:ss.fff]" 前缀，这里不再重复写时间
+            string line = "[" + level + "] " + msg;
             try { MelonLoader.MelonLogger.Msg(line); } catch { }
             _pending.Add(line);
             if (_pending.Count >= 32) Flush();
@@ -58,6 +76,7 @@ namespace TAFHotfixBatch1
             if (!_ready || _pending.Count == 0) return;
             try
             {
+                if (!EnsureFile()) { _pending.Clear(); return; }   // log_no_file=1：直接丢弃，不建目录
                 StringBuilder sb = new StringBuilder();
                 foreach (string l in _pending) sb.AppendLine(l);
                 File.AppendAllText(_path, sb.ToString(), Encoding.UTF8);
