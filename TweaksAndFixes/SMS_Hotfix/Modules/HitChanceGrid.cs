@@ -32,6 +32,8 @@ namespace TAFHotfixBatch1.Modules
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr VirtualAlloc(IntPtr lpAddress, UIntPtr dwSize, uint flAllocationType, uint flProtect);
         [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool VirtualFree(IntPtr lpAddress, UIntPtr dwSize, uint dwFreeType);
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
 
         private const uint MEM_COMMIT = 0x1000, MEM_RESERVE = 0x2000, PAGE_READWRITE = 0x04, PAGE_EXECUTE_READWRITE = 0x40;
@@ -69,10 +71,8 @@ namespace TAFHotfixBatch1.Modules
                 }
                 if (best == IntPtr.Zero) { HotfixLog.Warn("[SMS.2.HC] clamp site not found (scan)"); return; }
 
-                IntPtr mem = VirtualAlloc(IntPtr.Zero, (UIntPtr)0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-                if (mem == IntPtr.Zero) { HotfixLog.Warn("[SMS.2.HC] VirtualAlloc failed"); return; }
-                long delta = (long)mem - ((long)best + 8);
-                if (delta < int.MinValue || delta > int.MaxValue) { HotfixLog.Warn("[SMS.2.HC] alloc out of ±2GB"); return; }
+                IntPtr mem = AllocNear(best, out long delta);
+                if (mem == IntPtr.Zero) { HotfixLog.Warn("[SMS.2.HC] alloc near code failed"); return; }
                 Marshal.WriteInt32(mem, BitConverter.ToInt32(BitConverter.GetBytes(_floor), 0));
 
                 uint old;
@@ -85,6 +85,38 @@ namespace TAFHotfixBatch1.Modules
                     + " floor=" + _floor.ToString("F6") + " (vanilla 0.01)");
             }
             catch (Exception e) { HotfixLog.Error("[SMS.2.HC] install failed: " + e); }
+        }
+
+
+        /// <summary>在目标指令 ±2GB 内分配一页（Windows 会按 64KB 粒度就近分配）。</summary>
+        private static IntPtr AllocNear(IntPtr near, out long delta)
+        {
+            delta = 0;
+            long baseAddr = near.ToInt64() & ~0xFFFFL;      // 64KB 对齐
+            const long step = 0x10000L;
+            const long maxSteps = 0x7000;                    // ±~448MB 搜索
+            for (long k = 1; k <= maxSteps; k++)
+            {
+                foreach (long dir in new long[] { +1, -1 })
+                {
+                    long hint = baseAddr + dir * k * step;
+                    if (hint <= 0x10000) continue;
+                    IntPtr mem = VirtualAlloc(new IntPtr(hint), (UIntPtr)0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+                    if (mem == IntPtr.Zero) continue;
+                    long d = (long)mem - (near.ToInt64() + 8);
+                    if (d >= int.MinValue && d <= int.MaxValue) { delta = d; return mem; }
+                    VirtualFree(mem, UIntPtr.Zero, 0x8000);      // MEM_RELEASE，换下一个
+                }
+            }
+            // 最后再试系统随意分配（可能不满足 ±2GB，但值得一试）
+            IntPtr any = VirtualAlloc(IntPtr.Zero, (UIntPtr)0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            if (any != IntPtr.Zero)
+            {
+                long d = (long)any - (near.ToInt64() + 8);
+                if (d >= int.MinValue && d <= int.MaxValue) { delta = d; return any; }
+                VirtualFree(any, UIntPtr.Zero, 0x8000);
+            }
+            return IntPtr.Zero;
         }
 
         /// <summary>枚举可执行段（按 PE 头），返回 (起始地址, 长度)。</summary>
