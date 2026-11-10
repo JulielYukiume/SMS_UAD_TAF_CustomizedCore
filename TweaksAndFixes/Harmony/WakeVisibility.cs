@@ -62,9 +62,23 @@ namespace TweaksAndFixes
         internal static int ShipCount { get { return ShipVis.Count; } }
         internal static int TorpCount { get { return TorpVis.Count; } }
 
+        /// <summary>
+        /// [SMS.2.WAKE] 舰船可见性。
+        ///
+        /// ⚠ 2026-11-10 修正：**玩家自己的船永远画**。
+        /// 原因：`Ship.ShowForOthers(false, …)` 不只为"敌方未发现"调用，
+        /// 某些界面/相机切换也会对我们自己的船调用一次 false；而此后再没有 true 调用，
+        /// 于是 `ShipVis` 里残留 false ⇒ 我方船的航迹被误隐藏（简化海面模式下更容易察觉）。
+        /// 敌船仍按原版标记判定（防剧透）。
+        /// </summary>
         internal static bool ShipVisible(Ship target)
         {
             if (!HotfixParams.WakeVisibleOnly) return true;
+
+            bool isHuman = false;
+            try { isHuman = target != null && target.player != null && !target.player.isAi; } catch { }
+            if (isHuman) return true;
+
             var flag = ShipFlag(target);
             if (flag.HasValue) return flag.Value;
             return true;

@@ -42,6 +42,7 @@ namespace TAFHotfixBatch1
             Modules.TrueMixed.Install(harmony);
             Modules.ShipDesignRelink.Install(harmony);
             Modules.SunkGraceWindow.Install(harmony);
+        Modules.HitChanceGrid.Install(harmony);
 
             HotfixLog.Info("SMS hotfix install complete.");
         }
