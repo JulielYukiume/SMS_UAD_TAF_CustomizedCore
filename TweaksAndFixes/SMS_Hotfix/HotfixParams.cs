@@ -178,7 +178,7 @@ namespace TAFHotfixBatch1
         internal static float ShipWakeColorMode = 1f;
         internal static float ShipWakeMaxShips = 60f;
         /// <summary>[SMS.2.HC] 射击概率量化网格；原版 0.01（1%），默认改 0.001（0.1%）。</summary>
-        internal static float HitChanceGrid = 0.001f;
+        internal static float HitChanceGrid = 0.01f;
         /// <summary>[SMS.2.HC] 诊断：打印 HitChance/HitChanceCalc 的实际数值。</summary>
         internal static bool HitChanceProbe = true;
         internal static float ShipWakeMaxDistance = 30000f;  // 超距不更新航迹（米）   // 航迹同时处理的船数上限（0=不限）   // 1=仿航行灯彩色航迹   // 0=舰艉 1=舯段     // 基础亮度（0-255，最新点的 alpha）      // 不透明度（1=不透明；<1 走 Transparent）
