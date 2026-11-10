@@ -179,6 +179,8 @@ namespace TAFHotfixBatch1
         internal static float ShipWakeMaxShips = 60f;
         /// <summary>[SMS.2.HC] 射击概率量化网格；原版 0.01（1%），默认改 0.001（0.1%）。</summary>
         internal static float HitChanceGrid = 0.001f;
+        /// <summary>[SMS.2.HC] 诊断：打印 HitChance/HitChanceCalc 的实际数值。</summary>
+        internal static bool HitChanceProbe = true;
         internal static float ShipWakeMaxDistance = 30000f;  // 超距不更新航迹（米）   // 航迹同时处理的船数上限（0=不限）   // 1=仿航行灯彩色航迹   // 0=舰艉 1=舯段     // 基础亮度（0-255，最新点的 alpha）      // 不透明度（1=不透明；<1 走 Transparent）
         /// <summary>[SMS.2.WAKE] 单帧位移超过该值视为瞬移（清除该点列）/ teleport threshold (m)</summary>
         internal static float ShipWakeMaxJump = 500f;
@@ -414,6 +416,7 @@ internal static bool TrueMixed = false;
             TorWakeProbe = GetBool("torp_wake_probe", TorWakeProbe);
             WakeVisibleOnly = GetBool("wake_visible_only", WakeVisibleOnly);
             HitChanceGrid = GetFloat("hit_chance_grid", HitChanceGrid);
+            HitChanceProbe = GetBool("hit_chance_probe", HitChanceProbe);
             NoneWaterBottomMode = GetFloat("none_waterbottom_mode", NoneWaterBottomMode);
             NoneWaterBottomR = GetFloat("none_waterbottom_r", NoneWaterBottomR);
             NoneWaterBottomG = GetFloat("none_waterbottom_g", NoneWaterBottomG);
