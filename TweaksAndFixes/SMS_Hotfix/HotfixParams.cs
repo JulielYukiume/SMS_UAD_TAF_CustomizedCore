@@ -95,7 +95,8 @@ namespace TAFHotfixBatch1
         /// <summary>Probes 容器开关（0=按 mode 处理）。</summary>
         internal static bool ConstructorProbes = false;
         /// <summary>0=整组关(duke) 1=只关局部(默认) 2=局部intensity=0 3=全开 4=只留船中 6=1+提Global 7=局部下移</summary>
-        internal static int ConstructorProbeMode = 1;
+        // [SMS.2.SEC] 默认 2：保留全部探针、局部探针下移到船底以下（修舯段色差，观感接近原版）
+        internal static int ConstructorProbeMode = 2;
         /// <summary>mode=6 时 Global 探针 intensity。</summary>
         internal static float ConstructorProbeGlobalIntensity = 1.4f;
         /// <summary>mode=7 时局部探针的 Y。</summary>
