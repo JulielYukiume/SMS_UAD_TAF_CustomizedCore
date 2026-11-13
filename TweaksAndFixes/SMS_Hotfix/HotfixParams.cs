@@ -79,20 +79,19 @@ namespace TAFHotfixBatch1
         internal static float ConstructorProbeY = -30f;
 
         /// <summary>[SMS.2.CQ] 殖民征服/叛乱事件成功率取证探针（DEBUG 用）。</summary>
-        internal static bool ConquestProbe = false;
+        internal static bool RebellionProbe = false;
         /// <summary>[SMS.2.UI] dump 选项窗口 General 页每行的结构（用于按钮组改造）。</summary>
         internal static bool UiDumpGeneral = false;
         /// <summary>[SMS.2.LOG] 不额外写独立日志文件（只走 MelonLoader 主日志）。</summary>
         internal static bool LogNoFile = true;
         /// <summary>[SMS.2.CQ] 需要翻转的事件类型（逗号分隔，默认 2=Rebellion）。</summary>
-        internal static string ConquestFixTypes = "2";
         /// <summary>[SMS.2.CQ] 0=原版 1=翻转 2=自定义公式</summary>
-        internal static int ConquestChanceMode = 2;   // 默认启用自定义公式（叛乱成功率修复）
+        internal static int RebellionChanceMode = 2;   // 默认启用自定义公式（叛乱成功率修复）
         /// <summary>[SMS.2.CQ] mode2: 防御方吨位达到 required 的几倍时成功率 100%</summary>
-        internal static float ConquestRatioFull = 1f;   // 1.7 征服只需 1× 需求吨位 ⇒ 叛乱对齐也用 1×
+        internal static float RebellionRatioFull = 1f;   // 1.7 征服只需 1× 需求吨位 ⇒ 叛乱对齐也用 1×
         /// <summary>[SMS.2.CQ] mode2: 开局/满期概率系数（与 duke 的 0.01/0.5 同形）</summary>
-        internal static float ConquestMultStart = 0.6f;
-        internal static float ConquestMultFull = 1f;
+        internal static float RebellionMultStart = 0.6f;
+        internal static float RebellionMultFull = 1f;
         /// <summary>[SMS.1.PROP] 是否在 RefreshHull 内布点（默认 0：交给 deck-clutter 路径）。</summary>
         internal static bool PropInRefreshHull = true;   // 3.22 原版不再创建 DeckProps，装饰物只能由我们布点（默认必须为 1）
         /// <summary>[SMS.1.OCEAN] 守夜人方案（默认关；port90 证实会误伤船体）。</summary>
@@ -349,14 +348,13 @@ internal static bool TrueMixed = false;
             ConstructorProbeMode = GetInt("constructor_probe_mode", ConstructorProbeMode);
             ConstructorProbeGlobalIntensity = GetFloat("constructor_probe_global_intensity", ConstructorProbeGlobalIntensity);
             ConstructorProbeY = GetFloat("constructor_probe_y", ConstructorProbeY);
-            ConquestProbe = GetBool("conquest_probe", ConquestProbe);
+            RebellionProbe = GetBool("rebellion_probe", GetBool("conquest_probe", RebellionProbe));
             UiDumpGeneral = GetBool("ui_dump_general", UiDumpGeneral);
             LogNoFile = GetBool("log_no_file", LogNoFile);
-            ConquestFixTypes = GetStr("conquest_fix_types", ConquestFixTypes);
-            ConquestChanceMode = GetInt("conquest_chance_mode", ConquestChanceMode);
-            ConquestRatioFull = GetFloat("conquest_ratio_full", ConquestRatioFull);
-            ConquestMultStart = GetFloat("conquest_mult_start", ConquestMultStart);
-            ConquestMultFull = GetFloat("conquest_mult_full", ConquestMultFull);
+            RebellionChanceMode = GetInt("rebellion_chance_mode", GetInt("conquest_chance_mode", RebellionChanceMode));
+            RebellionRatioFull = GetFloat("rebellion_ratio_full", GetFloat("conquest_ratio_full", RebellionRatioFull));
+            RebellionMultStart = GetFloat("rebellion_mult_start", GetFloat("conquest_mult_start", RebellionMultStart));
+            RebellionMultFull = GetFloat("rebellion_mult_full", GetFloat("conquest_mult_full", RebellionMultFull));
             PropInRefreshHull = GetBool("prop_in_refresh_hull", PropInRefreshHull);
             OceanKeeper = GetBool("ocean_keeper", OceanKeeper);
             OceanDukeAllWater = GetBool("ocean_duke_all_water", OceanDukeAllWater);
