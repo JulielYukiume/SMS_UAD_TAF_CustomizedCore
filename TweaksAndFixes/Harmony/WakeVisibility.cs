@@ -86,7 +86,8 @@ namespace TweaksAndFixes
 
         internal static bool TorpedoVisible(Torpedo t)
         {
-            if (!HotfixParams.WakeVisibleOnly) return true;
+            // [SMS.2.WAKE] 拆分：鱼雷独立开关（船用 wake_visible_only）
+            if (!HotfixParams.TorWakeVisibleOnly) return true;
             var flag = TorpFlag(t);
             if (flag.HasValue) return flag.Value;
             // 原版未记录：鱼雷默认**隐藏**（防剧透），可通过 torp_wake_fail_open=1 改回放行
