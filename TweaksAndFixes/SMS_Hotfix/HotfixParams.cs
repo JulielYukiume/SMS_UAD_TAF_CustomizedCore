@@ -53,16 +53,12 @@ namespace TAFHotfixBatch1
         internal static bool ReparationMothball = true;
         /// <summary>[SMS.1.SCENE] 场景结构只读探针。</summary>
         internal static bool SceneProbe = false;
-        /// <summary>[SMS.1.MAT] 舯段渲染/材质只读探针。</summary>
-        internal static bool MatProbe = false;
         /// <summary>[SMS.1.DECOR] 是否用替代实现拦截空渲染器的 Decor.Awake（默认 0=不介入）。</summary>
         internal static bool DecorAwakeGuard = false;
         /// <summary>[SMS.2.RH] 吞掉 Decor.Awake 的原版异常（默认开）。</summary>
         internal static bool DecorAwakeSwallow = true;   // 默认不介入（开启会用空集合替代，可能抑制装饰初始化）
         /// <summary>[SMS.1.DECOR] 是否启用"被炮塔/炮管遮挡则隐藏装饰件"（默认 0=只生成不隐藏）。</summary>
         internal static bool DecorHideOccluded = true;    // 碰撞/遮挡隐藏（救生艇等应与原版一致）
-        /// <summary>[SMS.1.SHADOW] 关闭舯段投影（A/B 色差测试用）。</summary>
-        internal static bool MiddleShadowOff = false;
         /// <summary>[SMS.1.WL] 应用 hullData 的 waterline / stabilityForward（Beta4 引入）。</summary>
         internal static bool HullDataApply = true;
         /// <summary>[SMS.1.SHIPGEN] 造船限制模式：0=关，1=生成后审计，2=审计+强制（暂等同 1）。</summary>
@@ -74,26 +70,7 @@ namespace TAFHotfixBatch1
         internal static bool DecalSize = true;
         /// <summary>[SMS.1.RH] 是否启用移植的 RefreshHull（0=走原版，用于色差二分）。</summary>
         internal static bool RefreshHull = true;
-        /// <summary>[SMS.1.SEC] 分段状态转储探针（只读，色差定位用）。</summary>
-        internal static bool SectionProbe = false;
-        /// <summary>[SMS.1.SEC] 材质实验：0=不动 1=中段改用艏段材质 2=全船段统一为 steel_4</summary>
-        internal static int SectionMatForce = 0;
-        /// <summary>[SMS.1.SEC] 实验：1=关闭各段 AutomaticLOD（强制全精度模型）</summary>
-        internal static int SectionLodOff = 0;
-        /// <summary>[SMS.2.SEC] 把舯段 isStatic 置 false（验证静态合批假设）。</summary>
-        internal static bool SectionNoBatch = false;
-        /// <summary>[SMS.2.SEC] 每段最多 dump 几个 Renderer。</summary>
-        internal static int SectionProbeMax = 32;
-        /// <summary>[SMS.2.SEC] 舱段 UV 归一化（把舯段 UV 跨度/中心对齐到舰艏）。</summary>
-        internal static bool SectionUvNormalize = false;
-        /// <summary>[SMS.2.SEC] 关闭船体所有 Renderer 的反射探针采样（排除"环境反射"假设）。</summary>
-        internal static bool SectionReflectionOff = false;
-        /// <summary>[SMS.2.SEC] 把所有船体段的 probeAnchor 统一到船体根（排除"锚点不同"假设）。</summary>
-        internal static bool SectionProbeAnchor = false;
 
-        // ---- [SMS.2.SEC] 构造器反射探针（色差根因）----
-        /// <summary>Probes 容器开关（0=按 mode 处理）。</summary>
-        internal static bool ConstructorProbes = false;
         /// <summary>0=整组关(duke) 1=只关局部(默认) 2=局部intensity=0 3=全开 4=只留船中 6=1+提Global 7=局部下移</summary>
         // [SMS.2.SEC] 默认 2：保留全部探针、局部探针下移到船底以下（修舯段色差，观感接近原版）
         internal static int ConstructorProbeMode = 2;
@@ -365,25 +342,14 @@ internal static bool TrueMixed = false;
             ShipDesignRegen = GetBool("ship_design_regen", ShipDesignRegen);
             ReparationMothball = GetBool("reparation_mothball", ReparationMothball);
             SceneProbe = GetBool("scene_probe", SceneProbe);
-            MatProbe = GetBool("mat_probe", MatProbe);
             DecorAwakeGuard = GetBool("decor_awake_guard", DecorAwakeGuard);
             DecorAwakeSwallow = GetBool("decor_awake_swallow", DecorAwakeSwallow);
             DecorHideOccluded = GetBool("decor_hide_occluded", DecorHideOccluded);
-            MiddleShadowOff = GetBool("middle_shadow_off", MiddleShadowOff);
             HullDataApply = GetBool("hull_data_apply", HullDataApply);
             ShipGenLimits = GetInt("shipgen_limits", ShipGenLimits);
             StaticOceanProbe = GetBool("static_ocean_probe", StaticOceanProbe);
             DecalSize = GetBool("decal_size", DecalSize);
             RefreshHull = GetBool("refresh_hull", RefreshHull);
-            SectionProbe = GetBool("section_probe", SectionProbe);
-            SectionMatForce = GetInt("section_mat_force", SectionMatForce);
-            SectionLodOff = GetInt("section_lod_off", SectionLodOff);
-            SectionNoBatch = GetBool("section_no_batch", SectionNoBatch);
-            SectionProbeMax = GetInt("section_probe_max", SectionProbeMax);
-            SectionUvNormalize = GetBool("section_uv_normalize", SectionUvNormalize);
-            SectionReflectionOff = GetBool("section_reflection_off", SectionReflectionOff);
-            SectionProbeAnchor = GetBool("section_probe_anchor", SectionProbeAnchor);
-            ConstructorProbes = GetBool("constructor_probes", ConstructorProbes);
             ConstructorProbeMode = GetInt("constructor_probe_mode", ConstructorProbeMode);
             ConstructorProbeGlobalIntensity = GetFloat("constructor_probe_global_intensity", ConstructorProbeGlobalIntensity);
             ConstructorProbeY = GetFloat("constructor_probe_y", ConstructorProbeY);
