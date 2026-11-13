@@ -7,7 +7,9 @@ using UnityEngine;
 namespace TweaksAndFixes
 {
     /// <summary>
-    /// [SMS.1.DECAL] 命中贴花按**炮弹口径**缩放（移植 Beta6 的 `Patch_Effect` + `Patch_DecalsManager`）。
+    /// [SMS.1.DECAL] = duke 原文件 `Harmony/DecalsManager.cs` 的移植（`Patch_Effect` + `Patch_DecalsManager`）。
+///   注：Beta6 反编译版里叫 `TweaksAndFixes.Harmony/Patch_DecalsManager.cs`；我们的 port 基树漏了该文件，
+///   因此按 1.7 签名重写了一份等价实现（含 try/catch 与口径回退）。
     ///
     /// 为什么需要：
     ///   原版所有弹孔尺寸固定 ⇒ 打穿装甲的穿甲弹与表面爆炸一样大，
