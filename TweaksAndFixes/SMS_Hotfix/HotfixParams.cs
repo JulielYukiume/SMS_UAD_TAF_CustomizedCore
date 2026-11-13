@@ -24,7 +24,7 @@ namespace TAFHotfixBatch1
         private const string CfgName = "SMS_UAD_TAF_CustomizedCore_DEBUG.config.csv";
 
         // ---- 内建默认值（与随附的 config.csv 保持一致）----
-        internal static string Mode = "log";                 // log = 只记录不改；apply = 真正写入
+        internal static string Mode = "apply";   // 默认即生效；log 仅用于观察（开关未覆盖所有模块，不对普通用户暴露）                 // log = 只记录不改；apply = 真正写入
         internal static bool RefitChainFix = true;           // A  赔偿舰/旧存档 改造链修复
         internal static bool ShipLossGuard = true;           // B  丢船：维修优先于补充船员
         internal static bool DuplicateDesignGuard = true;    // C  重复设计 / 重复 id
