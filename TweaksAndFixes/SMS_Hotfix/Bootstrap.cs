@@ -20,7 +20,7 @@ namespace TAFHotfixBatch1
             Modules.AiRefitRestore.Install(harmony);
             Modules.DebugAiRefit.Install(harmony);
             Modules.KeepLastDesign.Install(harmony);
-            Modules.SharedBackfillProbe.Install(harmony);
+            Modules.SharedBackfillBind.Install(harmony);
             Modules.ReparationCopyFix.Install(harmony);
             Modules.ReparationMothball.Install(harmony);
             Modules.ShipLossGuard.Install(harmony);

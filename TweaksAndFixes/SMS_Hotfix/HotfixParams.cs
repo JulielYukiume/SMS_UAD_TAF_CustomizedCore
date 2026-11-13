@@ -272,10 +272,9 @@ internal static bool TrueMixed = false;
         internal static int DesignCapPerType = 6;
         internal static bool DebugParamTrace = false;
         internal static bool KeepLastDesign = true;
-        internal static bool SharedBackfillProbe = true;
-        internal static bool SharedBackfillAggressive = true;
+        internal static bool SharedBackfillBind = true;
         internal static bool ReparationCopyFix = true;
-        internal static int SharedBackfillMax = 0;
+        internal static int SharedBackfillBindMax = 0;
         internal static int KeepLastDesignAgeTurns = 36;
         internal static bool KeepLastDesignTriggerPredef = true;
 
@@ -445,10 +444,9 @@ internal static bool TrueMixed = false;
             DesignCapPerType = GetInt("design_cap_per_type", DesignCapPerType);
             DebugParamTrace = GetBool("debug_param_trace", DebugParamTrace);
             KeepLastDesign = GetBool("keep_last_design", KeepLastDesign);
-            SharedBackfillProbe = GetBool("shared_backfill_probe", SharedBackfillProbe);
-            SharedBackfillAggressive = GetBool("shared_backfill_aggressive", SharedBackfillAggressive);
+            SharedBackfillBind = GetBool("shared_backfill_bind", GetBool("shared_backfill_aggressive", SharedBackfillBind));
             ReparationCopyFix = GetBool("reparation_copy_fix", ReparationCopyFix);
-            SharedBackfillMax = GetInt("shared_backfill_max", SharedBackfillMax);
+            SharedBackfillBindMax = GetInt("shared_backfill_bind_max", GetInt("shared_backfill_max", SharedBackfillBindMax));
             KeepLastDesignAgeTurns = GetInt("keep_last_design_age_turns", KeepLastDesignAgeTurns);
             KeepLastDesignTriggerPredef = GetBool("keep_last_design_trigger_predef", KeepLastDesignTriggerPredef);
         }

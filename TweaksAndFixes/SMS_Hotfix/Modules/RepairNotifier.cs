@@ -29,7 +29,7 @@ namespace TAFHotfixBatch1.Modules
         /// <summary>B2 + S 完成之后调用：此时预览模型已构建完毕，提示"另存并重读"最合适。</summary>
         internal static void NotifyOnLoadComplete()
         {
-            int made = SharedBackfillProbe.MadeCount;
+            int made = SharedBackfillBind.MadeCount;
             int total = ChainFixes + DupIds + SharedFlags + made;
             if (total <= 0) return;
             // 玩家文案（将来走 LNG：$taf_SMS_CC_*）；日志保持英文
