@@ -16,8 +16,8 @@ namespace TweaksAndFixes
     ///   里按 `GunData.shellSize` 缩放贴花（鱼雷 ×0.25）。
     ///
     /// 配置：
-    ///   · `decal_size`（0/1，默认 1）—— 总开关
-    ///   · `taf_shell_hit_decal_size_multiplier`（默认 10）—— 与 duke 同名，兼容其配置习惯
+    ///   · 恒开（不再提供 decal_size 开关；`decal_size` 已 REMOVED）
+    ///   · `taf_shell_hit_decal_size_multiplier`（默认 10）—— 与 duke 同名，唯一调参入口
     ///
     /// 注意（1.7 与 Beta6 的签名差异）：
     ///   · 1.7：`Effect.Hit(Ship, string, Vector3, Quaternion, Part, Ship.HitPrecalc, float, Projectile)`
@@ -35,7 +35,6 @@ namespace TweaksAndFixes
         {
             try
             {
-                if (!HotfixParams.DecalSize) return;
                 if (fromWeapon == null || fromWeapon.data == null) return;
 
                 if (fromWeapon.data.isTorpedo) Caliber = "torp";
@@ -48,7 +47,6 @@ namespace TweaksAndFixes
         [HarmonyPatch("Hit")]
         internal static void Postfix_Hit()
         {
-            if (!HotfixParams.DecalSize) return;
             Caliber = "";
         }
     }
@@ -63,7 +61,6 @@ namespace TweaksAndFixes
         {
             try
             {
-                if (!HotfixParams.DecalSize) return;
                 if (dp == null) return;
 
                 var guns = G.GameData != null ? G.GameData.guns : null;

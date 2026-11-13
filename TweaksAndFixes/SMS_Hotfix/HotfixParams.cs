@@ -67,7 +67,6 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.OCEAN] 静态海面可行性探针（只读）。</summary>
         internal static bool StaticOceanProbe = false;
         /// <summary>[SMS.1.DECAL] 命中贴花按口径缩放（duke 的弹孔修复）。</summary>
-        internal static bool DecalSize = true;
         /// <summary>[SMS.1.RH] 是否启用移植的 RefreshHull（0=走原版，用于色差二分）。</summary>
         internal static bool RefreshHull = true;
 
@@ -348,7 +347,6 @@ internal static bool TrueMixed = false;
             HullDataApply = GetBool("hull_data_apply", HullDataApply);
             ShipGenLimits = GetInt("shipgen_limits", ShipGenLimits);
             StaticOceanProbe = GetBool("static_ocean_probe", StaticOceanProbe);
-            DecalSize = GetBool("decal_size", DecalSize);
             RefreshHull = GetBool("refresh_hull", RefreshHull);
             ConstructorProbeMode = GetInt("constructor_probe_mode", ConstructorProbeMode);
             ConstructorProbeGlobalIntensity = GetFloat("constructor_probe_global_intensity", ConstructorProbeGlobalIntensity);
