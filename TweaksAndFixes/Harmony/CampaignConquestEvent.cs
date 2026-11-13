@@ -46,6 +46,15 @@ namespace TweaksAndFixes
             }
             else
             {
+                // ⚠ [SMS.2.RBL][TODO SMS.3] 这段是 Rebellion / RebellionLand 的分支，**吨位项是反的**：
+                //     叛乱事件里 CurrentTonnage 是**防御方**兵力，而 chance 在 CheckEventProgress
+                //     （1.7: 0x2C56E2 comiss xmm7,xmm6 / jae）里被当作**起义成功率**使用。
+                //     ⇒ 防御方越强，chance 越高（越强越容易丢省）；空城时 chance≈0 ⇒ "空城反而防守成功"。
+                //     duke 只修了击杀比（下方 killRatio 的注释），没修吨位项，且这里再加 0.66 会进一步放大。
+                //   计划的正确修法（SMS.3，需单独立项评审）：
+                //     ratioLerped = Lerp(start, full, dur) * (1 - clamp01(CurrentTonnage / totalReq));
+                //     并去掉 +0.66 的常数补偿（或改为只在 duration 推进时加）。
+                //   现状：SMS.2 用我们自己的 `rebellion_chance_mode=2` 覆盖本函数结果（默认生效）。
                 ratioLerped += Config.Param("taf_conquest_event_add_chance", 0.66f);
                 // Game is bugged and has this ratio flipped
                 var killRatio = (_this.AttackerKillsTotal + 1f) / (_this.DefenderKillsTotal + 1f);
