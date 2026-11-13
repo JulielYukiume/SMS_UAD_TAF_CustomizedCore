@@ -29,16 +29,16 @@ namespace TAFHotfixBatch1.Modules
     /// 只处理本次被选中的船（不做全船重算，避免性能负担）。
     /// 红线：不删船、不改设计表、不推进回合；身份字段全部保留。
     /// </summary>
-    internal static class RefitCostRefresh
+    internal static class RefitShipRefresh
     {
         /// <summary>等待"装甲/分舱结算完成"后再重算的船（延后两帧）。</summary>
         private static readonly System.Collections.Generic.List<Ship> _pendingRecalc =
             new System.Collections.Generic.List<Ship>();
         internal static void Install(HarmonyLib.Harmony harmony)
         {
-            if (!HotfixParams.RefitCostRefresh)
+            if (!HotfixParams.RefitShipRefresh)
             {
-                HotfixLog.Info("[SMS.1.E] RefitCostRefresh: disabled by config");
+                HotfixLog.Info("[SMS.1.E] RefitShipRefresh: disabled by config");
                 return;
             }
 
@@ -55,10 +55,10 @@ namespace TAFHotfixBatch1.Modules
                 //   对方在同一方法上挂了 Prefix/Postfix，其 Postfix 会**立刻** CalcWeightAndCost(true,true)，
                 //   用的是尚未结算完的状态（正是 E 模块要避免的）。我们置 Priority.Last 确保在它之后运行：
                 //   先让它算，再由我们置失效标记 + 两帧后重算，最终值以我们的为准。
-                var hmE = new HarmonyMethod(AccessTools.Method(typeof(RefitCostRefresh), nameof(Postfix_RefitShipsStart)));
+                var hmE = new HarmonyMethod(AccessTools.Method(typeof(RefitShipRefresh), nameof(Postfix_RefitShipsStart)));
                 hmE.priority = Priority.Last;
                 harmony.Patch(m, postfix: hmE);
-                HotfixLog.Info("[SMS.1.E] RefitCostRefresh: patched PlayerController::RefitShipsStart"
+                HotfixLog.Info("[SMS.1.E] RefitShipRefresh: patched PlayerController::RefitShipsStart"
                                + "  (overwrite state from refit design + recalc cost)"
                                + "  overwrite=" + (HotfixParams.RefitStateOverwrite ? 1 : 0)
                                + "  mode=" + HotfixParams.Mode);
@@ -104,7 +104,7 @@ namespace TAFHotfixBatch1.Modules
                                                      Il2CppSystem.Collections.Generic.List<Ship> shipList,
                                                      Ship refitDesign, bool isPlayer)
         {
-            if (!HotfixParams.IsApply || !HotfixParams.RefitCostRefresh) return;
+            if (!HotfixParams.IsApply || !HotfixParams.RefitShipRefresh) return;
             if (shipList == null) return;
             if (!isPlayer && !HotfixParams.RefitAiToo)
             {
@@ -117,7 +117,7 @@ namespace TAFHotfixBatch1.Modules
             bool aiRefit = !isPlayer;
             if (aiRefit) HotfixLog.Info("[SMS.1.E] AI refit enabled: " + shipList.Count + " ship(s)");
 
-            int n = 0, ok = 0, okInvalidate = 0;
+            int n = 0, ok = 0;
             string dn = SafeName(refitDesign);
 
             for (int i = 0; i < shipList.Count; i++)
@@ -186,11 +186,6 @@ namespace TAFHotfixBatch1.Modules
                     catch (Exception ex) { HotfixLog.Warn("[SMS.1.E][diag] failed: " + ex.Message); }
                 }
 
-                if (HotfixParams.RefitInvalidate)
-                {
-                    try { s.NeedRecalcStats(); okInvalidate++; }
-                    catch (Exception ex) { HotfixLog.Warn("[SMS.1.E] '" + SafeName(s) + "': NeedRecalcStats failed: " + ex.Message); }
-                }
 
                 if (HotfixParams.RefitDeferredRecalc) _pendingRecalc.Add(s);
 
@@ -219,7 +214,7 @@ namespace TAFHotfixBatch1.Modules
             }
 
             HotfixLog.Info("[SMS.1.E] refit start: " + n + " ship(s), " + ok + " refreshed to design '" + dn + "'"
-                           + "  (isPlayer=" + isPlayer + ", aiRefit=" + aiRefit + ", invalidate=" + okInvalidate + ", overwrite=" + (HotfixParams.RefitStateOverwrite ? 1 : 0) + ")");
+                           + "  (isPlayer=" + isPlayer + ", aiRefit=" + aiRefit + ", overwrite=" + (HotfixParams.RefitStateOverwrite ? 1 : 0) + ")");
         }
 
         /// <summary>

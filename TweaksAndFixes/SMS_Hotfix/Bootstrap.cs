@@ -15,8 +15,8 @@ namespace TAFHotfixBatch1
             HotfixLog.Info("==================================================");
 
             Modules.RefitChainFix.Install(harmony);
-            Modules.RefitCostRefresh.Install(harmony);
-            Modules.RefitCostDisplay.Install(harmony);
+            Modules.RefitShipRefresh.Install(harmony);
+            Modules.RefitInfoDisplay.Install(harmony);
             Modules.AiRefitRestore.Install(harmony);
             Modules.DebugAiRefit.Install(harmony);
             Modules.KeepLastDesign.Install(harmony);

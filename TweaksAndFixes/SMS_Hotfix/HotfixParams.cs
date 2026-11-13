@@ -169,7 +169,7 @@ namespace TAFHotfixBatch1
         /// <summary>
         /// E：改造开始后，对被选中的船强制重算造价/重量（修"改造后仍按旧造价"）。
         /// </summary>
-        internal static bool RefitCostRefresh = true;
+        internal static bool RefitShipRefresh = true;
         /// <summary>E：是否也对 AI 改造刷新造价（默认关；开启用于验证，见 docs/44）。</summary>
         internal static bool RefitAiToo = false;
 /// <summary>[P] 只读诊断：预制池缺舰种时列出该实例实际有哪些键。</summary>
@@ -183,7 +183,7 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.TON] 严格判据：tonnage 必须与 design 完全一致（容差 0.1 吨）。</summary>
         internal static bool TonnageCheckStrict = true;
         /// <summary>[SMS.1.TON] 把不一致的实存船 tonnage 回填为设计值（默认关）。</summary>
-        internal static bool TonnageRepair = false;
+        internal static bool TonnageRepair = true;
         /// <summary>[SMS.1.STA] 设计 status 稽核（只读）。</summary>
         internal static bool DesignStatusAudit = true;
         /// <summary>[SMS.1.STA] 把 status!=0 的设计统一置 0（默认关）。</summary>
@@ -226,7 +226,6 @@ namespace TAFHotfixBatch1
         /// E（推荐方案）：改造开始时只调用 `Ship.NeedRecalcStats()` 置缓存失效，
         /// 由引擎在界面刷新时惰性重算 —— 对应 1.7 新增的缓存机制（1.5.1.6 无缓存故无此 bug）。
         /// </summary>
-        internal static bool RefitInvalidate = false;   // 隐藏开关：会产生非法值，禁止启用
         /// <summary>E 的性能测量开关（测试用）：对选中船做 ToStore→FromStore 自往返并计时。默认关。</summary>
         internal static bool RefitBench = false;
         /// <summary>E 的诊断：改造开始时打印"设计 / 船"的造价与吨位，用于与造船厂内的正确值对照。</summary>
@@ -235,7 +234,7 @@ namespace TAFHotfixBatch1
         /// E 方案 B（推荐）：改造中的船在 Cost()/MaintenanceCost() 上直接返回"待应用改造设计"的值。
         /// 不写缓存、不重建部件；只在 status==Refit 且 designShipForRefit 存在时生效。
         /// </summary>
-        internal static bool RefitCostDisplay = true;
+        internal static bool RefitInfoDisplay = true;
         /// <summary>
         /// F：TAF 的 AI 隐藏构造 workaround 会把真船下沉 1000m 且不还原
         /// ⇒ 本开关负责记录并在 LeaveConstructor / 离开 World 时还原。
@@ -406,7 +405,7 @@ internal static bool TrueMixed = false;
             ShipWakeMaxDistance = GetFloat("ship_wake_max_distance", ShipWakeMaxDistance);
             ShipWakeMaxJump = GetFloat("ship_wake_max_jump", ShipWakeMaxJump);
             StaticOcean = GetBool("static_ocean", StaticOcean);
-            RefitCostRefresh = GetBool("refit_cost_refresh", RefitCostRefresh);
+            RefitShipRefresh = GetBool("refit_ship_refresh", GetBool("refit_cost_refresh", RefitShipRefresh));
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);
             PredefAliasFallback = GetBool("predef_alias_fallback", PredefAliasFallback);
@@ -427,10 +426,9 @@ internal static bool TrueMixed = false;
             RefitForceRecalc = GetBool("refit_force_recalc", RefitForceRecalc);
             RefitDeferredRecalc = GetBool("refit_deferred_recalc", RefitDeferredRecalc);
             RefitFullRecalc = GetBool("refit_full_recalc", RefitFullRecalc);
-            RefitInvalidate = GetBool("refit_invalidate", RefitInvalidate);
             RefitBench = GetBool("refit_bench", RefitBench);
             RefitDiag = GetBool("refit_diag", RefitDiag);
-            RefitCostDisplay = GetBool("refit_cost_display", RefitCostDisplay);
+            RefitInfoDisplay = GetBool("refit_info_display", GetBool("refit_cost_display", RefitInfoDisplay));
             AiRefitRestore = GetBool("ai_refit_restore", AiRefitRestore);
             DebugAiRefit = GetFloat("debug_ai_refit", DebugAiRefit);
             DebugAiDesignProbe = GetBool("debug_ai_design_probe", DebugAiDesignProbe);
