@@ -157,7 +157,7 @@ namespace TAFHotfixBatch1
         internal static float HitChanceGrid = 0.001f;
         /// <summary>[SMS.2.PU] 非战役上下文（共享设计/自定义战斗）按"设计自己的 techs"检查 needunlock。
         /// 0=原版（一律视为已解锁）；1=启用检查。</summary>
-        internal static bool PartUnlockStrict = false;
+        internal static bool PartUnlockStrict = true;   // 默认启用（rc38 起；1890 共享设计实测有效：后期部件显示为不可用）
         internal static float ShipWakeMaxDistance = 30000f;  // 超距不更新航迹（米）   // 航迹同时处理的船数上限（0=不限）   // 1=仿航行灯彩色航迹   // 0=舰艉 1=舯段     // 基础亮度（0-255，最新点的 alpha）      // 不透明度（1=不透明；<1 走 Transparent）
         /// <summary>[SMS.2.WAKE] 单帧位移超过该值视为瞬移（清除该点列）/ teleport threshold (m)</summary>
         internal static float ShipWakeMaxJump = 500f;
