@@ -66,7 +66,8 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.1.WL] 应用 hullData 的 waterline / stabilityForward（Beta4 引入）。</summary>
         internal static bool HullDataApply = true;
         /// <summary>[SMS.1.SHIPGEN] 造船限制模式：0=关，1=生成后审计，2=审计+强制（暂等同 1）。</summary>
-        internal static int ShipGenLimits = 0;
+        // [SMS.2.SHIPGEN] 默认启用（与 TAF 主支的生成器行为对齐；>=1 限制主炮/部件，>=2 再加规则）
+        internal static int ShipGenLimits = 1;
         /// <summary>[SMS.1.OCEAN] 静态海面可行性探针（只读）。</summary>
         internal static bool StaticOceanProbe = false;
         /// <summary>[SMS.1.DECAL] 命中贴花按口径缩放（duke 的弹孔修复）。</summary>
