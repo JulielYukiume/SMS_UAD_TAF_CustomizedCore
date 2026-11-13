@@ -891,77 +891,9 @@ namespace TweaksAndFixes
 
 
         /// <summary>[SMS.2.UI] 打印 General 页每一行的结构：子物体名、Toggle 数、是否有 ToggleGroup、文本内容。</summary>
-        private static void DumpGeneralRows(GameObject content)
-        {
-            try
-            {
-                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] === General rows dump ===");
-                int n = content.transform.childCount;
-                for (int i = 0; i < n; i++)
-                {
-                    var row = content.transform.GetChild(i);
-                    if (row == null) continue;
-
-                    int toggles = 0;
-                    bool group = false;
-                    string texts = "";
-                    foreach (var t in row.GetComponentsInChildren<Toggle>(true)) toggles++;
-                    foreach (var g in row.GetComponentsInChildren<ToggleGroup>(true)) group = true;
-                    foreach (var t in row.GetComponentsInChildren<UnityEngine.UI.Text>(true))
-                    {
-                        if (t != null && !string.IsNullOrEmpty(t.text)) texts += "[" + t.text + "] ";
-                    }
-
-                    global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]   [" + i + "] '" + row.name + "' childs=" + row.childCount
-                                   + " toggles=" + toggles + " group=" + group + " texts=" + texts);
-                    for (int k = 0; k < row.childCount && k < 6; k++)
-                    {
-                        var c = row.GetChild(k);
-                        if (c == null) continue;
-                        global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]       - '" + c.name + "' childs=" + c.childCount);
-
-                        // 对 Options 容器：打印每个按钮的名字与组件类型
-                        if (c.childCount > 1)
-                        {
-                            for (int m = 0; m < c.childCount; m++)
-                            {
-                                var b = c.GetChild(m);
-                                if (b == null) continue;
-                                string comps = "n/a";
-                                string txt = "";
-                                foreach (var t2 in b.GetComponentsInChildren<UnityEngine.UI.Text>(true))
-                                    if (t2 != null && !string.IsNullOrEmpty(t2.text)) txt += "[" + t2.text + "] ";
-                                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI]           btn[" + m + "] '" + b.name
-                                    + "' comps=" + comps + " text=" + txt);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] dump rows: " + e.Message); }
-        }
 
 
         /// <summary>[SMS.2.UI] 找出选项窗口里所有 UnityEngine.UI.Text 及其字体（自建行需要复用字体）。</summary>
-        private static void DumpUiFonts(GameObject root)
-        {
-            try
-            {
-                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] === UI.Text / font dump ===");
-                int shown = 0;
-                foreach (var t in root.GetComponentsInChildren<UnityEngine.UI.Text>(true))
-                {
-                    if (t == null) continue;
-                    string font = "-";
-                    try { if (t.font != null) font = t.font.name; } catch { }
-                    global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] TEXT '" + PathOf(t.transform)
-                        + "' font='" + font + "' text='" + (t.text ?? "") + "'");
-                    if (++shown >= 40) break;
-                }
-                global::TAFHotfixBatch1.HotfixLog.Info("[SMS.2.UI] UI.Text total shown=" + shown);
-            }
-            catch (Exception e) { global::TAFHotfixBatch1.HotfixLog.Warn("[SMS.2.UI] font dump: " + e.Message); }
-        }
 
         private static string PathOf(Transform t)
         {
@@ -3724,7 +3656,6 @@ namespace TweaksAndFixes
                       ShowRestartRequired();
                   }));
                   od.SetValue(TAF_Settings.settings.oceanType, false);
-                   if (global::TAFHotfixBatch1.HotfixParams.UiDumpGeneral) { DumpGeneralRows(GeneralOptionsContent); DumpUiFonts(SettingsRoot); }
               }
 
               {

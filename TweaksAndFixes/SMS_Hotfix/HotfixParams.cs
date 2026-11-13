@@ -81,7 +81,6 @@ namespace TAFHotfixBatch1
         /// <summary>[SMS.2.CQ] 殖民征服/叛乱事件成功率取证探针（DEBUG 用）。</summary>
         internal static bool RebellionProbe = false;
         /// <summary>[SMS.2.UI] dump 选项窗口 General 页每行的结构（用于按钮组改造）。</summary>
-        internal static bool UiDumpGeneral = false;
         /// <summary>[SMS.2.LOG] 不额外写独立日志文件（只走 MelonLoader 主日志）。</summary>
         internal static bool LogNoFile = true;
         /// <summary>[SMS.2.CQ] 需要翻转的事件类型（逗号分隔，默认 2=Rebellion）。</summary>
@@ -346,7 +345,6 @@ internal static bool TrueMixed = false;
             ConstructorProbeGlobalIntensity = GetFloat("constructor_probe_global_intensity", ConstructorProbeGlobalIntensity);
             ConstructorProbeY = GetFloat("constructor_probe_y", ConstructorProbeY);
             RebellionProbe = GetBool("rebellion_probe", GetBool("conquest_probe", RebellionProbe));
-            UiDumpGeneral = GetBool("ui_dump_general", UiDumpGeneral);
             LogNoFile = GetBool("log_no_file", LogNoFile);
             RebellionChanceMode = GetInt("rebellion_chance_mode", GetInt("conquest_chance_mode", RebellionChanceMode));
             RebellionRatioFull = GetFloat("rebellion_ratio_full", GetFloat("conquest_ratio_full", RebellionRatioFull));
