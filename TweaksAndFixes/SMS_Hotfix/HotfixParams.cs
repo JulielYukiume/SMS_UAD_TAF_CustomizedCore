@@ -176,7 +176,6 @@ namespace TAFHotfixBatch1
         /// <summary>[P] 真实桶缺舰种时，回退到别名桶（{包序}_{玩家}）取设计。</summary>
         internal static bool PredefAliasFallback = true;
         /// <summary>[SMS.1.PF] 当 taf_force_no_predef_designs=1 时，一并关掉预制设计取用（避免 TAF 越界崩溃）。</summary>
-        internal static bool PredefForceOff = true;
         /// <summary>[SMS.1.TON] 实存船原始吨位校验（只读）。</summary>
         internal static bool TonnageCheck = true;
         /// <summary>[SMS.1.TON] 严格判据：tonnage 必须与 design 完全一致（容差 0.1 吨）。</summary>
@@ -248,7 +247,6 @@ namespace TAFHotfixBatch1
         /// **G1 探针**（只读）：记录 AI 现场生成设计时"为哪个舰种、重试几次"。
         /// 默认 0。开启后零副作用，仅写日志。
         /// </summary>
-        internal static bool DebugAiDesignProbe = false;
                 /// <summary>[SMS.2.G2] 混合模式下允许抽"超前当前年"的年数。</summary>
         /// <summary>[SMS.2.G2] T1 基础容忍：设计 techs 数 - 玩家已完成科技数 的允许差值。</summary>
                 /// <summary>[SMS.2.G2][T3] 兜底"大跃进"总开关：1=开启（包链抽不到时补科技）。</summary>
@@ -405,7 +403,6 @@ internal static bool TrueMixed = false;
             RefitAiToo = GetBool("refit_ai_too", RefitAiToo);
             PredefPoolProbe = GetBool("predef_pool_probe", PredefPoolProbe);
             PredefAliasFallback = GetBool("predef_alias_fallback", PredefAliasFallback);
-            PredefForceOff = GetBool("predef_force_off", PredefForceOff);
             TonnageCheck = GetBool("tonnage_check", TonnageCheck);
             TonnageCheckStrict = GetBool("tonnage_check_strict", TonnageCheckStrict);
             TonnageRepair = GetBool("tonnage_repair", TonnageRepair);
@@ -427,7 +424,6 @@ internal static bool TrueMixed = false;
             RefitInfoDisplay = GetBool("refit_info_display", GetBool("refit_cost_display", RefitInfoDisplay));
             AiRefitRestore = GetBool("ai_refit_restore", AiRefitRestore);
             DebugAiRefit = GetFloat("debug_ai_refit", DebugAiRefit);
-            DebugAiDesignProbe = GetBool("debug_ai_design_probe", DebugAiDesignProbe);
             TrueMixed = GetBool("true_mixed", TrueMixed);
             TrueMixedYearAhead = GetInt("true_mixed_year_ahead", TrueMixedYearAhead);
             TrueMixedTechTolerance = GetInt("true_mixed_tech_tolerance", TrueMixedTechTolerance);
