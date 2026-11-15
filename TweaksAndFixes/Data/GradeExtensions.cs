@@ -169,6 +169,7 @@ namespace TweaksAndFixes
 
             int max = Config.MaxGunGrade;
             int pmFallback = 0, pmReal = 0, gunRows = 0, gunReal = 0;
+            int pmLoaded = 0, gunLoaded = 0;   // 引擎/序列化器**在本次 fill 之前**就已加载的 grade-max 条目数
 
             // ---- 1) partModels 先行（模型/缩放决定炮重与倍径修正） ----
             foreach (var pm in G.GameData.partModels.Values)
@@ -178,6 +179,8 @@ namespace TweaksAndFixes
 
                 bool isFallbackRow = string.IsNullOrEmpty(pm.countries) && string.IsNullOrEmpty(pm.shipTypes);
                 if (isFallbackRow) pmFallback++;
+
+                if (pm.models.ContainsKey(max)) pmLoaded++;
 
                 bool real = pm.models.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.models[max], ModUtils.GradeValueRule.NonEmptyString)
                             && pm.scales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.scales[max], ModUtils.GradeValueRule.NonZeroNumber)
@@ -204,6 +207,8 @@ namespace TweaksAndFixes
             {
                 gunRows++;
 
+                if (gd.accuracies.ContainsKey(max)) gunLoaded++;
+
                 bool real = gd.accuracies.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.accuracies[max], ModUtils.GradeValueRule.PositiveNumber)
                             && gd.ranges.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.ranges[max], ModUtils.GradeValueRule.PositiveNumber);
                 if (real) gunReal++;
@@ -219,14 +224,20 @@ namespace TweaksAndFixes
 
             GunData.gradesTotal = Config.MaxGunGrade;
 
+            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] loader pre-check at grade " + max
+                + ": partModels with models[" + max + "] already loaded: " + pmLoaded + "/" + pmFallback
+                + ", guns with accuracies[" + max + "] already loaded: " + gunLoaded + "/" + gunRows);
+
             Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] per-column grade fill up to " + max
                 + ": fallback partModels " + pmFallback + " (real model at grade " + max + ": " + pmReal + "), "
                 + "guns " + gunRows + " (real table at grade " + max + ": " + gunReal + ")");
 
             if (pmReal == 0 && gunReal == 0)
                 Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] grade " + max
-                    + " has no real data at all (base-game fields only go to grade 5; Mk6+ must be declared via TAF `param` columns). "
-                    + "All columns were carried over from the nearest valid grade (expected for Mk6-on-Mk5 mods).");
+                    + " has no real data in the loaded gun/partModel dictionaries. "
+                    + "If the CSVs DO carry grade-" + max + " columns but this count is 0, the loader is not mapping them into the dictionaries; "
+                    + "if the CSVs have no grade-" + max + " columns at all, declare them via TAF `param` columns (legacy path). "
+                    + "All columns were carried over from the nearest valid grade.");
         }
 
         public static void LoadData()
