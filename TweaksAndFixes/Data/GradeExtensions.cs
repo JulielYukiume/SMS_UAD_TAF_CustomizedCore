@@ -168,6 +168,11 @@ namespace TweaksAndFixes
                 return;
 
             int max = Config.MaxGunGrade;
+
+            // [SMS3-20] 引擎只认 `_1.._5` 字段（rc39f 实测 models[6]=0/228），
+            //   grade>=6 的 CSV 列必须由我们读进字典；先读真数据，再逐列回滚补空缺。
+            GradeColumns.LoadAll();
+
             int pmFallback = 0, pmReal = 0, gunRows = 0, gunReal = 0;
             int pmLoaded = 0, gunLoaded = 0;   // 引擎/序列化器**在本次 fill 之前**就已加载的 grade-max 条目数
 
