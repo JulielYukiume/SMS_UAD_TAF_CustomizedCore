@@ -147,6 +147,49 @@ namespace TweaksAndFixes
             }
         }
 
+        /// <summary>
+        /// [SMS3-20b] 在 `Database.FillDatabase()` 把 `Config.MaxGunGrade` 抬高之后**重跑一次等级填充**。
+        ///
+        /// 背景：`LoadData()` 跑在 `GameData.PostProcessAll` 的 Prefix，那时 `MaxGunGrade` 还是 guns.csv 推出来的值（本 mod 为 5）。
+        /// 如果 `technologies.csv` 里有 Mk6 科技（`gun(x;6)`）而 guns.csv 没有 grade-6 列，
+        /// 科技表会被我们的 data-driven caps 扩到 6，但 `GunData` / `PartModelData` 的 grade 字典仍只到 5
+        /// ⇒ 原生 `Part.GetModelNameScale(..., gunGradeOverride=6)` 取到 null ⇒ `Ui.RefreshParts` 里
+        /// `Enumerable.Select/Sum` 抛 `ArgumentNullException`（1950+ 主炮列表打不开，实测 26-11-15_18-37-3.log）。
+        ///
+        /// `FillGradeData` 的语义正是"缺失等级复制前一级"（duke 的安全回滚：Mk6 沿用 Mk5 数据），所以这里只是把它补齐。
+        /// </summary>
+        public static void ReapplyGradeData()
+        {
+            if (Config.MaxGunGrade <= 5)
+                return;
+
+            foreach (var gd in G.GameData.guns.Values)
+            {
+                ModUtils.FillGradeData(gd.accuracies, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.barrelWeights, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.firerates, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.penetrations, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.ranges, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.shellVelocities, Config.MaxGunGrade);
+                ModUtils.FillGradeData(gd.shellWeights, Config.MaxGunGrade);
+            }
+
+            foreach (var pm in G.GameData.partModels.Values)
+            {
+                if (pm.caliberLengthModifiers.count < 5)
+                    continue;   // 只处理火炮类 partModel
+
+                ModUtils.FillGradeData(pm.caliberLengthModifiers, Config.MaxGunGrade);
+                ModUtils.FillGradeData(pm.maxScales, Config.MaxGunGrade);
+                ModUtils.FillGradeData(pm.models, Config.MaxGunGrade);
+                ModUtils.FillGradeData(pm.scales, Config.MaxGunGrade);
+                ModUtils.FillGradeData(pm.weightModifiers, Config.MaxGunGrade);
+            }
+
+            GunData.gradesTotal = Config.MaxGunGrade;
+            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] re-applied grade data up to " + Config.MaxGunGrade + " (missing grades copy previous, e.g. Mk6<-Mk5)");
+        }
+
         public static void LoadData()
         {
             GunDataExtension.LoadData();

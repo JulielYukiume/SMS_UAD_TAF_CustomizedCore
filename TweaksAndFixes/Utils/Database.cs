@@ -123,6 +123,10 @@ namespace TweaksAndFixes
                 Config.MaxTorpBarrels = maxTubes;
             }
 
+            // [SMS3-20b] 抬高上限后必须补齐 GunData / PartModelData 的 grade 字典，
+            //   否则原生 Part.GetModelNameScale(grade=6) 取到 null ⇒ Ui.RefreshParts 抛 ArgumentNullException。
+            GradeExtensions.ReapplyGradeData();
+
             _GunGradeTechs = new string[maxCal + 1, maxGrade + 1];
             _GunGradeYears = new int[maxCal + 1, maxGrade + 1];
             _TorpGradeTechs = new string[maxTorpGrade + 1];
