@@ -2038,6 +2038,22 @@ namespace TweaksAndFixes
             }
         }
 
+        /// <summary>
+        /// [SMS3-22] 清空 hull 的 middles。duke 原实现"先删光再查 order"的用意就在这里：
+        /// `InitSectionsCyclical` 是**增量**的（按 h.middles.Count % baseCount 追加），
+        /// 若保留旧段再回退，段数虽对、但变体顺序残留 ⇒ 表现为"某个舯段的变化时有时无"。
+        /// </summary>
+        private static void DestroyAllMiddles(Ship s)
+        {
+            var h = s.hull;
+            while (h.middles.Count > 0)
+            {
+                var section = h.middles[^1];
+                h.middles.RemoveAt(h.middles.Count - 1);
+                GameObject.DestroyImmediate(section);
+            }
+        }
+
         private static void UpdateSections(Ship s, int middleCount)
         {
             var h = s.hull;
@@ -2096,17 +2112,13 @@ namespace TweaksAndFixes
                     HotfixLog.Warn("[SMS.2.RH] bad section order for " + hModelName + " (" + h.data.name + ")"
                         + " middleCount=" + middleCount + " order=[" + string.Join(",", order) + "]"
                         + " baseCount=" + h.middlesBase.Count + " -> fallback cyclical");
+                DestroyAllMiddles(s);          // ★ 必须清空：InitSectionsCyclical 是增量的
                 InitSectionsCyclical(s, middleCount);
                 return;
             }
 
             // Remove all, since order can be anything
-            while (h.middles.Count > 0)
-            {
-                var section = h.middles[^1];
-                h.middles.RemoveAt(h.middles.Count - 1);
-                GameObject.DestroyImmediate(section);
-            }
+            DestroyAllMiddles(s);
 
             // Create in order
             foreach (var index in order)
