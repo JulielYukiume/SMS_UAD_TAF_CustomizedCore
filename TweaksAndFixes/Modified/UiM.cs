@@ -2886,6 +2886,15 @@ namespace TweaksAndFixes
                 return;
             }
 
+            // [SMS3-23] SSCDropdown 由 ApplyUiModifications() 创建；
+            //   若 GameData.FillDatabase 协程中途抛异常（如 tech 表越界），ApplyUiModifications 根本不会执行，
+            //   此时每次 Ui.RefreshConstructorInfo 都会走到这里 ⇒ 空引用刷屏（Silly 环境实测 61 次）。
+            if (SSCDropdown == null || SSCDropdownDropdownContainer == null)
+            {
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.UI] UpdateShipTypeButtons skipped (SSCDropdown not built yet)");
+                return;
+            }
+
             // When entering with saved ships, override the ship it opens the constructor with
 
             if (doBuild && !GameManager.IsCampaign && !GameManager.IsSharedDesignConstructor)
