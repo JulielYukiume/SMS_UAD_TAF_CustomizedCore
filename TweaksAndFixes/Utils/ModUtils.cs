@@ -1797,15 +1797,51 @@ namespace TweaksAndFixes
             return result;
         }
 
+        /// <summary>
+        /// [SMS3-20c] 某一级"算不算有数据"。用于把"列存在但值为空"也当成缺失，从而只回滚缺失的那一列/那一级。
+        /// - 字符串：空白 ⇒ 无效（partModels 的 `model_6` 常见）
+        /// - 数值：<=0 ⇒ 无效（guns.csv 的空列解析成 0；partModels 的 `scale/max_scale` 用 -1 表示未设置）
+        /// - 其它：视为有效
+        /// </summary>
+        public static bool IsValidGradeValue<T>(T value)
+        {
+            if (value == null)
+                return false;
+
+            if (value is string s)
+                return !string.IsNullOrWhiteSpace(s);
+
+            try
+            {
+                double d = System.Convert.ToDouble(value);
+                return d > 0 && !double.IsNaN(d) && !double.IsInfinity(d);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// [SMS3-20c] 逐列向前回滚：对每个等级 1..max，若该级缺失或值无效，则复制**最近一个有效等级**的值。
+        /// 与旧实现的区别：
+        ///  - 旧实现只处理 grade 6..max，且以硬编码的 5 为基线，遇到"列存在但值=0/空"不会回滚；
+        ///  - 新实现从 grade 1 扫到 max，**按列独立**判定有效性，只回滚真正缺的那几级（不是整级回滚）。
+        /// </summary>
         public static void FillGradeData<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T> dict, int max)
         {
-            int maxGradeFound = 5;
-            for (int grade = 6; grade <= max; ++grade)
+            int lastValid = -1;
+
+            for (int grade = 1; grade <= max; ++grade)
             {
-                if (dict.ContainsKey(grade))
-                    maxGradeFound = grade;
-                else
-                    dict[grade] = dict[maxGradeFound];
+                if (dict.ContainsKey(grade) && IsValidGradeValue(dict[grade]))
+                {
+                    lastValid = grade;
+                    continue;
+                }
+
+                if (lastValid > 0)
+                    dict[grade] = dict[lastValid];
             }
         }
 

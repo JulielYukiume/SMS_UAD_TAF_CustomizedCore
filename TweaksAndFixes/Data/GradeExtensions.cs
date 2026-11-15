@@ -148,46 +148,76 @@ namespace TweaksAndFixes
         }
 
         /// <summary>
-        /// [SMS3-20b] 在 `Database.FillDatabase()` 把 `Config.MaxGunGrade` 抬高之后**重跑一次等级填充**。
+        /// [SMS3-20c] 抬高 `Config.MaxGunGrade` 之后**逐列补齐**（把 rc39c 的"整级回滚"升级为"按列回滚"）：
         ///
-        /// 背景：`LoadData()` 跑在 `GameData.PostProcessAll` 的 Prefix，那时 `MaxGunGrade` 还是 guns.csv 推出来的值（本 mod 为 5）。
-        /// 如果 `technologies.csv` 里有 Mk6 科技（`gun(x;6)`）而 guns.csv 没有 grade-6 列，
-        /// 科技表会被我们的 data-driven caps 扩到 6，但 `GunData` / `PartModelData` 的 grade 字典仍只到 5
-        /// ⇒ 原生 `Part.GetModelNameScale(..., gunGradeOverride=6)` 取到 null ⇒ `Ui.RefreshParts` 里
-        /// `Enumerable.Select/Sum` 抛 `ArgumentNullException`（1950+ 主炮列表打不开，实测 26-11-15_18-37-3.log）。
+        /// 1) **先**看 `partModels`：某 mk 的 `models` 为空、或 `scales`/`maxScales`/`weightModifiers`/
+        ///    `caliberLengthModifiers` 为 0 / -1 ⇒ 该列"无有效数据"，单独回滚到最近一个有效级；
+        /// 2) **再**看 `guns` 射表：某 mk 的 accuracy/barrelW/firerate/penetration/range/shellV/shellW
+        ///    为 0 或缺失 ⇒ 该列单独回滚；
+        /// 3) 只有所有列都缺的等级才算整级无效（日志会点出来）。
         ///
-        /// `FillGradeData` 的语义正是"缺失等级复制前一级"（duke 的安全回滚：Mk6 沿用 Mk5 数据），所以这里只是把它补齐。
+        /// 这是 NathanKell 时代 `FillGradeData` 的意图（Mk6 ← Mk5 安全回滚），旧实现按整级回滚且不看"值为空"。
         /// </summary>
         public static void ReapplyGradeData()
         {
             if (Config.MaxGunGrade <= 5)
                 return;
 
-            foreach (var gd in G.GameData.guns.Values)
-            {
-                ModUtils.FillGradeData(gd.accuracies, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.barrelWeights, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.firerates, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.penetrations, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.ranges, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.shellVelocities, Config.MaxGunGrade);
-                ModUtils.FillGradeData(gd.shellWeights, Config.MaxGunGrade);
-            }
+            int max = Config.MaxGunGrade;
+            int pmCount = 0, pmReal = 0, gunCount = 0, gunReal = 0;
 
+            // ---- 1) partModels 先行（模型会影响炮重与倍径修正） ----
             foreach (var pm in G.GameData.partModels.Values)
             {
                 if (pm.caliberLengthModifiers.count < 5)
                     continue;   // 只处理火炮类 partModel
 
-                ModUtils.FillGradeData(pm.caliberLengthModifiers, Config.MaxGunGrade);
-                ModUtils.FillGradeData(pm.maxScales, Config.MaxGunGrade);
-                ModUtils.FillGradeData(pm.models, Config.MaxGunGrade);
-                ModUtils.FillGradeData(pm.scales, Config.MaxGunGrade);
-                ModUtils.FillGradeData(pm.weightModifiers, Config.MaxGunGrade);
+                pmCount++;
+
+                bool real = pm.models.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.models[max]);
+                if (real) pmReal++;
+
+                ModUtils.FillGradeData(pm.models, max);
+                ModUtils.FillGradeData(pm.scales, max);
+                ModUtils.FillGradeData(pm.maxScales, max);
+                ModUtils.FillGradeData(pm.caliberLengthModifiers, max);
+                ModUtils.FillGradeData(pm.weightModifiers, max);
+
+                if (Config.Param("verbose", 0f) > 0f && !real)
+                    Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] partModel " + pm.name
+                        + ": model_" + max + " empty -> per-column fallback");
+            }
+
+            // ---- 2) guns 射表 ----
+            foreach (var gd in G.GameData.guns.Values)
+            {
+                gunCount++;
+
+                bool real = gd.accuracies.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.accuracies[max]);
+                if (real) gunReal++;
+
+                ModUtils.FillGradeData(gd.accuracies, max);
+                ModUtils.FillGradeData(gd.barrelWeights, max);
+                ModUtils.FillGradeData(gd.firerates, max);
+                ModUtils.FillGradeData(gd.penetrations, max);
+                ModUtils.FillGradeData(gd.ranges, max);
+                ModUtils.FillGradeData(gd.shellVelocities, max);
+                ModUtils.FillGradeData(gd.shellWeights, max);
             }
 
             GunData.gradesTotal = Config.MaxGunGrade;
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] re-applied grade data up to " + Config.MaxGunGrade + " (missing grades copy previous, e.g. Mk6<-Mk5)");
+
+            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] per-column grade fill up to " + max
+                + ": partModels " + pmCount + " (real model at grade " + max + ": " + pmReal + "), "
+                + "guns " + gunCount + " (real table at grade " + max + ": " + gunReal + ")");
+
+            if (pmReal == 0 || gunReal == 0)
+                Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] grade " + max
+                    + " has no "
+                    + (pmReal == 0 ? "real model" : "")
+                    + (pmReal == 0 && gunReal == 0 ? " / " : "")
+                    + (gunReal == 0 ? "real gun table" : "")
+                    + " in mod data -> columns copied from the nearest valid grade (normal for Mk6-on-Mk5 mods)");
         }
 
         public static void LoadData()
