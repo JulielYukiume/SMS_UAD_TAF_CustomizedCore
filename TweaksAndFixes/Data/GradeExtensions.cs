@@ -174,7 +174,9 @@ namespace TweaksAndFixes
             GradeColumns.LoadAll();
 
             int pmFallback = 0, pmReal = 0, gunRows = 0, gunReal = 0;
-            int pmLoaded = 0, gunLoaded = 0;   // 引擎/序列化器**在本次 fill 之前**就已加载的 grade-max 条目数
+            int pmAll = 0, pmRealFallback = 0;
+            int pmLoaded = 0, gunLoaded = 0;   // 在本次 fill 之前字典里**已有** grade-max 条目的数量
+            int pmLoadedFallback = 0;
 
             // ---- 1) partModels 先行（模型/缩放决定炮重与倍径修正） ----
             foreach (var pm in G.GameData.partModels.Values)
@@ -182,10 +184,13 @@ namespace TweaksAndFixes
                 if (pm.caliberLengthModifiers.count < 5)
                     continue;   // 只处理火炮类 partModel
 
+                pmAll++;
+
                 bool isFallbackRow = string.IsNullOrEmpty(pm.countries) && string.IsNullOrEmpty(pm.shipTypes);
                 if (isFallbackRow) pmFallback++;
 
                 if (pm.models.ContainsKey(max)) pmLoaded++;
+                if (isFallbackRow && pm.models.ContainsKey(max)) pmLoadedFallback++;
 
                 bool real = pm.models.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.models[max], ModUtils.GradeValueRule.NonEmptyString)
                             && pm.scales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.scales[max], ModUtils.GradeValueRule.NonZeroNumber)
@@ -193,6 +198,7 @@ namespace TweaksAndFixes
                 if (real)
                 {
                     pmReal++;
+                    if (isFallbackRow) pmRealFallback++;
                 }
                 else if (isFallbackRow && Config.Param("verbose", 0f) > 0f)
                 {
@@ -229,13 +235,14 @@ namespace TweaksAndFixes
 
             GunData.gradesTotal = Config.MaxGunGrade;
 
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] loader pre-check at grade " + max
-                + ": partModels with models[" + max + "] already loaded: " + pmLoaded + "/" + pmFallback
-                + ", guns with accuracies[" + max + "] already loaded: " + gunLoaded + "/" + gunRows);
+            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] grade " + max + " coverage: "
+                + "partModels " + pmLoaded + "/" + pmAll + " (fallback rows " + pmLoadedFallback + "/" + pmFallback + "), "
+                + "guns " + gunLoaded + "/" + gunRows);
 
             Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] per-column grade fill up to " + max
-                + ": fallback partModels " + pmFallback + " (real model at grade " + max + ": " + pmReal + "), "
-                + "guns " + gunRows + " (real table at grade " + max + ": " + gunReal + ")");
+                + ": partModels " + pmAll + " (usable grade-" + max + " model: " + pmReal
+                + ", of which fallback rows: " + pmRealFallback + "), "
+                + "guns " + gunRows + " (usable grade-" + max + " table: " + gunReal + ")");
 
             if (pmReal == 0 && gunReal == 0)
                 Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] grade " + max
