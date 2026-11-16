@@ -13,7 +13,7 @@ redistributed here under the MIT license; the original copyright notice in [LICE
 | 项目 | 说明 |
 | --- | --- |
 | **NathanKell/UADRealism** | TAF 的起源项目（2024） |
-| **DukeDagor/UADRealismDIP** | 官方 TAF 主线；本分支的基线源码来自其 `Minor_Relase_3.21.1` |
+| **DukeDagor/UADRealismDIP** | 官方 TAF 主线；**当前基线 = 3.22.0（Beta6 线）**（历史：`Minor_Relase_3.21.1`） |
 | 许可证 | MIT（见 [LICENSE](LICENSE)，`Copyright (c) 2024 NathanKell`） |
 
 链接：
@@ -26,12 +26,13 @@ redistributed here under the MIT license; the original copyright notice in [LICE
 | 项 | 说明 |
 | --- | --- |
 | 维护者 | **JulielYukiume**（SMS / 熔钢铸权 项目） |
-| 代码改动 | 4 处官方文件修改 + 新增 `TweaksAndFixes/SMS_Hotfix/`（28 个模块），逐条列于 [SMS/RELEASE-NOTES.md](SMS/RELEASE-NOTES.md) |
+| 当前版本 | **3.22.0-SMS.2**（UAD 1.7.0.0 / MelonLoader 0.7.3） |
+| 代码改动 | 官方文件修改（`Harmony/Ship.cs`、`Harmony/GameData.cs`、`Utils/Database.cs`、`Data/GradeExtensions.cs`、`Modified/UiM.cs` 等）+ 新增 `Data/GradeColumns.cs`（Mk6+ 列读取）+ 新增 `TweaksAndFixes/SMS_Hotfix/`（**41 个模块**），逐条列于 [SMS/RELEASE-NOTES.md](SMS/RELEASE-NOTES.md) |
 | 许可 | 与上游一致：**MIT** |
 
 ```text
 Copyright (c) 2024 NathanKell            （原始 TAF）
-Copyright (c) 2026 JulielYukiume         （SMS 分支的修改与新增部分）
+Copyright (c) 2026 JulielYukiume         （SMS 分支的修改与新增部分，3.21.1-SMS.1 → 3.22.0-SMS.2）
 ```
 
 ## 第三方参考 / Third-party references
