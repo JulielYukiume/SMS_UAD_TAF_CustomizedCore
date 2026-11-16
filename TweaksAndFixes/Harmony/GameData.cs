@@ -320,9 +320,11 @@ namespace TweaksAndFixes
         [HarmonyPatch(nameof(GameData.LoadSharedDesigns))]
         internal static void Postfix_LoadSharedDesigns()
         {
-            Melon<TweaksAndFixes>.Logger.Msg(
-                $"Validating Shared Designs..."
-            );
+            // [SMS2-11] 与 duke Beta6 对齐：除 Hull/ShipType/Player/Part 外，还要校验 **techs**，
+            //   并做 null 检查；否则缺失科技的共享设计会留在列表里，进入时
+            //   `Ship.FromStore` → `LoadSave.Get<TechnologyData>` 报 "no such TechnologyData from save" 并崩溃。
+            //   （此前我们的版本用 `break` 跳出国家循环，且没有 Tech 检查 —— 这是 3.21.1 血统的移植缺口。）
+            Melon<TweaksAndFixes>.Logger.Msg("Validating Shared Designs...");
 
             foreach (var nation in G.GameData.playersMajor)
             {
@@ -335,52 +337,62 @@ namespace TweaksAndFixes
                 {
                     var design = list[i].Item1;
 
-                    // Most importaint check
-                    if (!G.GameData.parts.ContainsKey(design.hullName))
+                    if (design.hullName == null || !G.GameData.parts.ContainsKey(design.hullName))
                     {
                         Melon<TweaksAndFixes>.Logger.Msg(
                             $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
                             $"Hull '{design.hullName}' does not exist!"
                         );
                         list.RemoveAt(i);
-                        break;
                     }
-
-                    // For if/when new shiptypes can be added
-                    if (!G.GameData.shipTypes.ContainsKey(design.shipType))
+                    else if (!G.GameData.shipTypes.ContainsKey(design.shipType))
                     {
                         Melon<TweaksAndFixes>.Logger.Msg(
                             $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
                             $"Ship Type '{design.shipType}' does not exist!"
                         );
                         list.RemoveAt(i);
-                        break;
                     }
-
-                    // Should never trigger, but just in case
-                    if (!G.GameData.players.ContainsKey(design.playerName))
+                    else if (!G.GameData.players.ContainsKey(design.playerName))
                     {
                         Melon<TweaksAndFixes>.Logger.Msg(
                             $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
                             $"Player '{design.playerName}' does not exist!"
                         );
                         list.RemoveAt(i);
-                        break;
                     }
-
-                    // Check the parts too
-                    foreach (var part in design.parts)
+                    else
                     {
-                        if (!G.GameData.parts.ContainsKey(part.name))
+                        bool invalid = false;
+
+                        foreach (var part in design.parts)
                         {
-                            list.RemoveAt(i);
+                            if (part.name == null || !G.GameData.parts.ContainsKey(part.name))
+                            {
+                                list.RemoveAt(i);
+                                Melon<TweaksAndFixes>.Logger.Msg(
+                                    $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
+                                    $"Part '{part.name}' does not exist!"
+                                );
+                                invalid = true;
+                                break;
+                            }
+                        }
 
-                            Melon<TweaksAndFixes>.Logger.Msg(
-                                $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
-                                $"Part '{part.name}' does not exist!"
-                            );
-
-                            break;
+                        if (!invalid && design.techs != null)
+                        {
+                            foreach (var tech in design.techs)
+                            {
+                                if (!G.GameData.technologies.ContainsKey(tech))
+                                {
+                                    list.RemoveAt(i);
+                                    Melon<TweaksAndFixes>.Logger.Msg(
+                                        $"  Invalid Shared Design '{design.vesselName}' ({design.playerName}): " +
+                                        $"Tech '{tech}' does not exist!"
+                                    );
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
