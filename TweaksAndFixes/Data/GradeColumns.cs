@@ -103,7 +103,7 @@ namespace TweaksAndFixes
                 }
             }
 
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] csv-column load (partModels): " + loadedRows
+            LogDbg("[SMS.3.GRADE] csv-column load (partModels): " + loadedRows
                 + " rows scanned, " + loadedModels + " model entries written for grade>=" + FirstExtraGrade);
         }
 
@@ -149,9 +149,6 @@ namespace TweaksAndFixes
                         case "range":      (gd.ranges ??= new())[grade] = v; break;
                         case "shellV":     (gd.shellVelocities ??= new())[grade] = v; break;
                         case "shellW":     (gd.shellWeights ??= new())[grade] = v; break;
-                        case "accuracy_old":
-                        case "accuracy_new":
-                            break;
                         default:
                             continue;
                     }
@@ -160,11 +157,17 @@ namespace TweaksAndFixes
                 }
             }
 
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] csv-column load (guns): " + rowsScanned
+            LogDbg("[SMS.3.GRADE] csv-column load (guns): " + rowsScanned
                 + " rows scanned, " + fieldsWritten + " table entries written for grade>=" + FirstExtraGrade);
         }
 
         // ---------------------------------------------------------------- helpers
+
+        private static void LogDbg(string msg)
+        {
+            if (Config.Param("verbose", 0f) > 0f)
+                Melon<TweaksAndFixes>.Logger.Msg(msg);
+        }
 
         private static bool TrySplitGradeColumn(string col, out string field, out int grade)
         {

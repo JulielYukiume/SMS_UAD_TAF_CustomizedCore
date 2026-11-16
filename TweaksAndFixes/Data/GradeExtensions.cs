@@ -147,20 +147,23 @@ namespace TweaksAndFixes
             }
         }
 
+        /// <summary>[SMS.3.GRADE] DEBUG 级日志（`verbose=1` 时才输出，正式版默认静默）。</summary>
+        private static void GradeDbg(string msg)
+        {
+            if (Config.Param("verbose", 0f) > 0f)
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] " + msg);
+        }
+
         /// <summary>
-        /// [SMS3-20d] 抬高 `Config.MaxGunGrade` 之后逐列补齐（正向判空 + 反向回滚）。
+        /// [SMS3-20] 抬高 `Config.MaxGunGrade` 之后逐列补齐 grade 数据。
         ///
-        /// **先明确一层引擎事实**（1.7.0.0 `dump.cs`）：`GunData` / `PartModelData` 只有 `_1.._5` 的**平铺字段**
-        /// （`barrelW_1..5`、`model_1..5`、`scale_1..5` …），**没有 `_6`**。
-        /// ⇒ CSV 里写的 `accuracy_6` / `model_6` 列**根本不会被引擎读入**；Mk6+ 只能通过 TAF 的 `param` 扩展列
-        /// （`accuracy(6;…)` 等，填进 `accuracies` 等字典）或 `*_override.csv` 进入游戏。
-        /// 本 mod 的 guns/partModels 没有 `param` 列 ⇒ Mk6 实际无数据，只能按"Mk6 ← Mk5"回滚。
+        /// 流程：
+        /// 1) `GradeColumns.LoadAll()` 先把 CSV 的 `_6+` 列读进字典（原版只认 `_1.._5` 字段）；
+        /// 2) partModels：`model` 非空、`scale`/`max_scale` 非 0、`weight`/`caliber_length` 非 0 才算有值；
+        /// 3) guns：射表列 > 0 才算有值；
+        /// 4) 对仍缺失的列，**逐列**回滚到最近有效级（不是整级回滚）。
         ///
-        /// 规则（用户 2026-11-15 口径）：
-        /// - partModels：`model_N` 非空、`scale_N`/`max_scale_N` 非 0 才算有数据；`weight_modifier_N`/`caliber_length_modifier_N`
-        ///   为空时回落到 `default` 行（序列化器 useDefault 已做），再不行按列回滚；
-        /// - guns：任何有效列的值不应为 0，0 视为缺列 → 该列单独回滚。
-        /// - 统计"真实数据"时只算**默认回退行**（无 country / shipType 覆盖）的 partModels。
+        /// 全部日志为 DEBUG 级（`verbose=1`）。
         /// </summary>
         public static void ReapplyGradeData()
         {
@@ -169,42 +172,24 @@ namespace TweaksAndFixes
 
             int max = Config.MaxGunGrade;
 
-            // [SMS3-20] 引擎只认 `_1.._5` 字段（rc39f 实测 models[6]=0/228），
-            //   grade>=6 的 CSV 列必须由我们读进字典；先读真数据，再逐列回滚补空缺。
             GradeColumns.LoadAll();
 
-            int pmFallback = 0, pmReal = 0, gunRows = 0, gunReal = 0;
-            int pmAll = 0, pmRealFallback = 0;
-            int pmLoaded = 0, gunLoaded = 0;   // 在本次 fill 之前字典里**已有** grade-max 条目的数量
-            int pmLoadedFallback = 0;
+            int pmAll = 0, pmFallback = 0, pmReal = 0;
+            int gunRows = 0, gunReal = 0;
 
-            // ---- 1) partModels 先行（模型/缩放决定炮重与倍径修正） ----
             foreach (var pm in G.GameData.partModels.Values)
             {
                 if (pm.caliberLengthModifiers.count < 5)
                     continue;   // 只处理火炮类 partModel
 
                 pmAll++;
-
                 bool isFallbackRow = string.IsNullOrEmpty(pm.countries) && string.IsNullOrEmpty(pm.shipTypes);
                 if (isFallbackRow) pmFallback++;
-
-                if (pm.models.ContainsKey(max)) pmLoaded++;
-                if (isFallbackRow && pm.models.ContainsKey(max)) pmLoadedFallback++;
 
                 bool real = pm.models.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.models[max], ModUtils.GradeValueRule.NonEmptyString)
                             && pm.scales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.scales[max], ModUtils.GradeValueRule.NonZeroNumber)
                             && pm.maxScales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.maxScales[max], ModUtils.GradeValueRule.NonZeroNumber);
-                if (real)
-                {
-                    pmReal++;
-                    if (isFallbackRow) pmRealFallback++;
-                }
-                else if (isFallbackRow && Config.Param("verbose", 0f) > 0f)
-                {
-                    Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] partModel " + pm.name
-                        + ": grade " + max + " has no usable model/scale -> per-column rollback");
-                }
+                if (real) pmReal++;
 
                 ModUtils.FillGradeData(pm.models, max, ModUtils.GradeValueRule.NonEmptyString);
                 ModUtils.FillGradeData(pm.scales, max, ModUtils.GradeValueRule.NonZeroNumber);
@@ -213,12 +198,9 @@ namespace TweaksAndFixes
                 ModUtils.FillGradeData(pm.caliberLengthModifiers, max, ModUtils.GradeValueRule.NonZeroNumber);
             }
 
-            // ---- 2) guns 射表 ----
             foreach (var gd in G.GameData.guns.Values)
             {
                 gunRows++;
-
-                if (gd.accuracies.ContainsKey(max)) gunLoaded++;
 
                 bool real = gd.accuracies.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.accuracies[max], ModUtils.GradeValueRule.PositiveNumber)
                             && gd.ranges.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.ranges[max], ModUtils.GradeValueRule.PositiveNumber);
@@ -235,21 +217,12 @@ namespace TweaksAndFixes
 
             GunData.gradesTotal = Config.MaxGunGrade;
 
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] grade " + max + " coverage: "
-                + "partModels " + pmLoaded + "/" + pmAll + " (fallback rows " + pmLoadedFallback + "/" + pmFallback + "), "
-                + "guns " + gunLoaded + "/" + gunRows);
-
-            Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] per-column grade fill up to " + max
-                + ": partModels " + pmAll + " (usable grade-" + max + " model: " + pmReal
-                + ", of which fallback rows: " + pmRealFallback + "), "
-                + "guns " + gunRows + " (usable grade-" + max + " table: " + gunReal + ")");
+            GradeDbg("grade " + max + ": partModels " + pmAll + " (fallback rows " + pmFallback
+                + ", usable grade-" + max + " model: " + pmReal + "), guns " + gunRows
+                + " (usable grade-" + max + " table: " + gunReal + ")");
 
             if (pmReal == 0 && gunReal == 0)
-                Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] grade " + max
-                    + " has no real data in the loaded gun/partModel dictionaries. "
-                    + "If the CSVs DO carry grade-" + max + " columns but this count is 0, the loader is not mapping them into the dictionaries; "
-                    + "if the CSVs have no grade-" + max + " columns at all, declare them via TAF `param` columns (legacy path). "
-                    + "All columns were carried over from the nearest valid grade.");
+                GradeDbg("grade " + max + " has no real data -> all columns carried over from the nearest valid grade");
         }
 
         public static void LoadData()
