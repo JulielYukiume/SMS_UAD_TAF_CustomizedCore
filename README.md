@@ -61,7 +61,9 @@ NathanKell/UADRealism          最早的上游
 
 - 📄 发布包内 `Mods\README.md` 与 `Mods\RELEASE-NOTES.md`（玩家向说明 + 相对 duke 的逐文件改动）
 - 📄 发布包内 `Mods\TAFData\params-report.md`（全参数总表：级别 / 默认值 / 模块 / 代码路径）
-- 📄 [SMS/docs/](SMS/docs/) — 专项调查与设计笔记（历史资料）
+- 📄 [SMS/RELEASE-NOTES.md](SMS/RELEASE-NOTES.md) — 3.22.0-SMS.2 发布说明（= 包内同文件）
+- 📄 [SMS/DIAGNOSTICS.md](SMS/DIAGNOSTICS.md) — 诊断/详细日志开关与排查顺序
+- 📄 [SMS/docs/](SMS/docs/) — 仅保留**代码注释引用**的少数几篇（历史资料）
 
 ## 安装
 
@@ -162,8 +164,7 @@ adds an optional hotfix layer on top of the official TAF source and keeps the ab
 - **Non-vanilla ship types** — UI index mapping so modded types (`cb`, `av`, …) can be selected and built.
 - **QoL / compatibility** — locked predef toggle when predefs are forced off, log-noise suppression, cheat-menu tech fix.
 
-See [SMS/RELEASE-NOTES.md](SMS/RELEASE-NOTES.md) for the exact change list of the current release,
-[SMS/DIAGNOSTICS.md](SMS/DIAGNOSTICS.md) for developer switches, and [SMS/docs/](SMS/docs/) for design notes.
+See [SMS/RELEASE-NOTES.md](SMS/RELEASE-NOTES.md) for the current release notes, [SMS/DIAGNOSTICS.md](SMS/DIAGNOSTICS.md) for the debug/verbose switches, and [SMS/docs/](SMS/docs/) for the few source-referenced design notes.
 
 ### Install
 

@@ -1,0 +1,272 @@
+﻿# SMS_UAD_TAF_CustomizedCore（DEBUG）
+# 列：key,value,"description",since
+# since = 参数起始版本（空 = 3.21.1 基线及更早）
+# 级别：ALL=所有配置默认含；DEBUG=仅 DEBUG 配置；EXPERIMENTAL=代码默认隐藏启用（仅 DEBUG 配置）
+# RETIRE / REMOVED 不随包（见 docs/74）
+# 辅助说明行以 `#    ` 缩进；位置与顺序沿用 Excel（人工排版优先）
+# 模块行格式：`#    [MODULE] switch=<0/1> code=<路径>`
+
+# ============================================================
+# A. 总开关与全局 / Global switches
+# -- 全局 / Global --
+mode,apply,"整体模式 / Overall mode: apply = active | log = observe only | 不保证所有SMS.1以后的功能都受这个总开关影响，建议维持开",3.21.1-SMS.1
+verbose,0,"启用输出调试日志 / 1 to verbose logging (DEBUG profile)",3.21.1-SMS.1
+
+# ============================================================
+# B. 通用前端：性能与交互 / Frontend: performance & interaction
+# -- 界面与交互 / UI & interaction --
+# -- 海面&空水模式 / Ocean & empty-water modes --
+#    [SMS.2.SCENE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/SceneProbe.cs
+scene_probe,0,"[SMS.2.SCENE] 场景探针 (已分拆，现在只做日志了) / scene probe",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+ocean_duke_all_water,0,"[SMS.2.OCEAN] duke 的 disable-all-water 路径（实验）/ duke all-water toggle (experimental)",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+ocean_keeper,0,"[SMS.2.OCEAN] 空水模式下保留局部水体（实验）/ keep local water in None mode (experimental)",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/SceneProbe.cs ; /TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_probe,0,"[SMS.2.OCEAN] 海面探针 / ocean probe",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_alpha,0.9,"[SMS.2.OCEAN] 简化海面不透明度（<1 透明）/ simplified ocean alpha (<1 partial transparent)",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_r,0.03,"[SMS.2.OCEAN] 简化海面颜色 R / simplified ocean color R",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_g,0.08,"[SMS.2.OCEAN] 简化海面颜色 G / simplified ocean color G",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_b,0.13,"[SMS.2.OCEAN] 简化海面颜色 B / simplified ocean color B",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_gloss,0.15,"[SMS.2.OCEAN] 简化海面光泽度 / simplified ocean glossiness",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_metallic,0.85,"[SMS.2.OCEAN] 简化海面金属度 / simplified ocean metallic",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_tiling,400,"[SMS.2.OCEAN] 简化海面贴图平铺(密度) / simplified ocean tiling",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_mode,1,"[SMS.2.OCEAN] 空水模式下的水底处理 / WaterBottom handling in empty-water mode | default Waterbottom @ -100(m)",3.22.0-SMS.2-port322
+#    0 = 原版 / vanilla | 1 = 调色 / recolor only | 2 = 关闭 / disable | 3 = 位移&调色 / adjust height & recolor
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_r,0.02,"[SMS.2.OCEAN] 水底颜色 R / WaterBottom color R",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_g,0.05,"[SMS.2.OCEAN] 水底颜色 G / WaterBottom color G",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_b,0.09,"[SMS.2.OCEAN] 水底颜色 B / WaterBottom color B",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_height,-200,"[SMS.2.OCEAN] 水底位置偏移 / WaterBottom position offset (only applies when none_waterbottom_mode=3)",3.22.0-SMS.2-port322
+
+# ============================================================
+# C. 通用后端：数据与逻辑 / Backend: data & logic
+# -- 舰种兼容 / ShipType compatibility --
+#    [SMS.1.H] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/HullTypeDump.cs
+hull_type_dump,0,"[SMS.1.H] 船体舰种归属一次性诊断 / one-shot hull shipType dump",3.21.1-SMS.1
+#    [SMS.1.Y] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipTypeProbe.cs
+shiptype_probe,0,"[SMS.1.Y] 舰种序号探针 (只读；需要verbose=1) / ship type index probe (read-only; requires verbose=1)",3.21.1-SMS.1
+#    [SMS.1.Y2] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipTypeSupportApply.cs
+shiptype_apply,1,"[SMS.1.Y2] 非原版舰种 UI 序号补全 / shiptype UI index mapping (inspired by ShipTypesSupport DLL - 4 core UI dealings)",3.21.1-SMS.1
+# -- 船体与设计 / Hull and designs (RefreshHull) --
+#    [SMS.2.RH] switch=1 code=/TweaksAndFixes/Harmony/Ship.cs
+refresh_hull,1,"[3.22.0 Beta][SMS.2.RH] 接管 Ship.RefreshHull / take over Ship.RefreshHull (duke's overhaul) | 3.22.0-SMS.2 必须为 1",3.22.0-SMS.2-port322
+#    [SMS.2.RH] switch=0 code=/TweaksAndFixes/Harmony/Ship.cs
+prop_in_refresh_hull,1,"[3.22.0 Beta][SMS.2.RH] 甲板装饰物在 RefreshHull 内布点 / place props inside RefreshHull | 3.22.0-SMS.2 必须为 1",3.22.0-SMS.2-port322
+#    [3.22.0 Beta#4] switch=1 code=/TweaksAndFixes/Harmony/Ship.cs
+hull_data_apply,1,"[3.22.0 Beta#4][SMS.1.WL] 应用 hullData.csv 覆盖 / apply hullData.csv overrides | Beta#4+的反编译移植再实现，必须默认启用",3.22.0-SMS.2-port322
+#    [3.22.0 Beta#2] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipGenWiring.cs ; /TweaksAndFixes/Modules/ShipGen.cs
+shipgen_limits,1,"[3.22.0 Beta#2][SMS.2.SHIPGEN] 生成器限制（主炮/部件）/ ship generator limits | Beta#2+的反编译移植再实现，必须默认启用",3.22.0-SMS.2-port322
+#    移植后代码上可以是2，似乎是更详细审计信息的模式？
+#    [SMS.2.PU] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/PartUnlockStrict.cs
+part_unlock_strict,1,"[SMS.2.PU] 全部模式按设计实际科技检查部件是否可用 / check part availability (needunlock) by techs in non-campaign contexts",3.22.0-SMS.2-rc17
+# -- 数据处理 / Data processing --
+#    0 = 原版 / vanilla | 1 = 共享设计和自定义战斗也检查部件可用性 / needunlock also affects in Shared Design & Custom Battle
+#    [SMS.2.HC] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/HitChanceGrid.cs
+hit_chance_floor,1E-3,"[SMS.2.HC] 射击命中率下限 / hit chance floor | 原版 / vanilla (main version 1.7.0.0 Live) = 0.01 (1%);",3.22.0-SMS.2-rc16
+
+# ============================================================
+# D. 构造器：共享设计/造船厂 / Constructor: shared designs & shipyard
+# -- 光效 / Light Effects --
+#    (SceneManager) switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+constructor_probe_mode,2,"[SMS.2.CORE][was: SMS.2.SEC] 反射探针模式 / mode on constructor reflection probes (Fix Fore/Mid/Aft section 'miscolor' issue)",3.22.0-SMS.2-port322
+#    0 = 禁用所有反射探针 (缺乏反射的死板光效) / disable all reflection probes ("dead" light effects, same with 3.22.0 Beta#4~#6)
+#    1 = 只保留全局探针 (偏冷蓝色调) / only applies constructor_probe_global_intensity (cold-blueish steels)
+#    2 = 保留全部探针，局部探针下移到船底以下 / applies all probes, while non-global probes move below hull to prevent issue
+#    (SceneManager) switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+constructor_probe_global_intensity,1.4,"[SMS.2.CORE][was: SMS.2.SEC] 全局光照反射(探针)强度 / Global reflection probe intensity | Vanilla = 1.75; SMS_CC default =1.4",3.22.0-SMS.2-port322
+#    (SceneManager) switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+constructor_probe_y,-30,"[SMS.2.CORE][was: SMS.2.SEC] 局部光照反射探针深度 (mode 2) / non-global refection probes depth (mode 2, should below hull)",3.22.0-SMS.2-port322
+#    [SMS.2.RH] switch=0 code=/TweaksAndFixes/Harmony/Patch_Decor.cs
+decor_awake_swallow,1,"[SMS.2.RH] 通过 Finalizer 吞掉 Decor.Awake 的 Sequence contains no elements（默认开）/ swallow Decor.Awake exception",3.22.0-SMS.2-port322
+#    [SMS.2.RH] switch=0 code=/TweaksAndFixes/Harmony/Patch_Decor.cs
+decor_hide_occluded,1,"[SMS.2.RH] 碰撞/遮挡隐藏（救生艇等与原版一致；异常 bounds 自动跳过）/ hide occluded decor",3.22.0-SMS.2-port322
+# -- 色差问题的其它尝试 / Other attempts on colour band issue --
+# -- 杂项 / Misc --
+#    [SMS.1.Y5] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ConstructorTypeProbe.cs
+constructor_type_probe,0,"[SMS.1.Y5] 构造器舰种入参只读诊断 / constructor type probe",3.21.1-SMS.1
+#    [SMS.1.Y3] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/IsPartAvailableProbe.cs
+shiptype_part_probe,0,"[SMS.1.Y3] 舰种-部件匹配探针 / ship type vs part probe",3.21.1-SMS.1
+#    [SMS.1.A2b] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ReparationCopyFix.cs
+reparation_copy_fix,1,"[SMS.1.A2b] 战役复制设计增强：年份更新&赔偿仿制 / enhanced copy ship in campaign: current turn & reparation to replicate",3.21.1-SMS.1
+
+# ============================================================
+# E. 战斗：场景内 / Battle: in-scene
+# -- 舰船航迹 / Ship wakes in non-default ocean modes --
+#    [SMS.2.WAKE] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_hint,1,"[SMS.2.WAKE] 船尾航迹开关 (简化海洋/空水模式) / ship wake toggle (in simple ocean or no-water mode)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_points,6,"[SMS.2.WAKE] 航迹生成点数量&模式 / ship wake generating points and mode (default use 6; others refer below)",3.22.0-SMS.2-port322
+#    船体点位 / Points on hull: 中点 / Centre(C) - Yellow; 左舷 / Port(P) - Red; 右舷 / Starboard(S) - Green; 艏柱 / Rostrum(N) - Blue;
+#    船体点位 / Points on hull: 舰艉 Stern(T) & 螺旋桨 Propellers(a1-a4) - White-Grey.
+#    1=C | 2=PS | 3=PST | 4=PSTN (all 4 directions, minimum to show full trace shape) | 5=PSN+a1a2 (2 on tail)
+#    6=PSTN+a1a2 (3 on tail) | 7=PSN+a1a2a3a4 (4 on tail) | 8=PSTN+a1a2a3a4 (5 on tail) | 9=all above
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_color_mode,1,"[SMS.2.WAKE] 彩色航迹（仿航行灯：左红/右绿/艏蓝/中黄）/ colored wake (refer above colors) | 0 = all use default White-Grey",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_dash,1,"[SMS.2.WAKE] 航迹中间条带用虚线 / ship wake dashed inner bands",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_extra_width,2,"[SMS.2.WAKE] 舷侧点额外外扩宽度（米）/ extra lateral offset (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_width,2.5,"[SMS.2.WAKE] 航迹条带宽度（米）/ ship wake band width (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_fade_pow,2.5,"[SMS.2.WAKE] 航迹渐隐指数 n / ship wake fade exponent (alpha ∝ t^n)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_seconds,20,"[SMS.2.WAKE] 航迹保留时间（战斗内秒）/ ship wake retention (seconds-in-battle)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_alpha,120,"[SMS.2.WAKE] 航迹基础亮度 / ship wake base brightness (0~255)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_max_distance,30000,"[SMS.2.WAKE] 超距不更新航迹（米）/ cull distance (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_max_jump,500,"[SMS.2.WAKE] 单帧位移超过该值视为瞬移（清除点列）/ teleport threshold (fix 'teleport' issues when re-discover enemy ships)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_max_ships,60,"[SMS.2.WAKE] 同时处理航迹的船数上限（0=不限；大战役建议 60-80）/ max ships to generate ship wakes",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/WakeVisibility.cs
+wake_visible_only,1,"[SMS.2.WAKE] 只为我方可见的舰船绘制航迹（防未卜先知）/ only draw wake for visible ships",3.22.0-SMS.2-port322
+# -- 鱼雷航迹 / Torpedo wakes in non-default ocean modes --
+#    [SMS.2.WAKE] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_hint,1,"[SMS.2.WAKE] 鱼雷雷迹补偿开关 (简化海洋/空水模式) / torpedo wake hint (in simple ocean or no-water mode)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_use_render_bounds,1,"[SMS.2.WAKE] 用鱼雷渲染包围盒取点（更贴合模型深度）/ use torpedo render bounds",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_width,2,"[SMS.2.WAKE] 雷迹宽度（米）/ torpedo wake width (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_fade_pow,2.5,"[SMS.2.WAKE] 雷迹渐隐指数 n / torpedo wake fade exponent (alpha ∝ t^n)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_linger,10,"[SMS.2.WAKE] 鱼雷消失后雷迹保留秒数 / linger after torpedo gone (s) (to prevent torpedo wake disappear on hit immediately)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_seconds,25,"[SMS.2.WAKE] 雷迹保留时间（战斗内秒）/ torpedo wake retention (seconds-in-battle)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_alpha,160,"[SMS.2.WAKE] 雷迹基础亮度 / torpedo wake base brightness (0~255)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_probe,0,"[SMS.2.WAKE] 鱼雷航迹探针 (大量日志) / torpedo wake probe (very noisy in logs)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_require_model,1,"[SMS.2.WAKE] 仅对模型可见的鱼雷画迹 / require visible model before drawing wake",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_min_renderers,2,"[SMS.2.WAKE] 视为“模型可见”的最少活跃渲染器数 / min active renderers to count as visible",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/WakeVisibility.cs
+torp_wake_visible_only,1,"[SMS.2.WAKE] 只为本方可见鱼雷画雷迹（防未卜先知） / only draw wake for visible torpedoes",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/WakeVisibility.cs
+torp_wake_fail_open,1,"[SMS.2.WAKE] 鱼雷未被原版记录可见性时是否放行（默认1=默认隐藏待玩家舰队识别）/ fail-open for torpedo wake visibility",3.22.0-SMS.2-port322
+# -- 杂项 / Misc --
+
+# ============================================================
+# F. 战役前端（存读档） / Campaign frontend: save/load
+# -- 舰船信息刷新 / Ship Info Refreshing --
+#    [SMS.1.E] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/RefitInfoDisplay.cs
+refit_info_display,1,"[SMS.1.E] 改造信息显示修正 (UI层) / fix refit info display (UI layer: Ship.Cost / Ship.Weight / Ship.MaintenanceCost)",3.21.1-SMS.1
+#    [SMS.1.E] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/RefitShipRefresh.cs
+refit_ship_refresh,1,"[SMS.1.E] 改造信息刷新 (总开关) / refresh refit status (module switch)",3.21.1-SMS.1
+#    [SMS.1.E] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RefitShipRefresh.cs
+refit_diag,0,"[SMS.1.E] 改造费用诊断日志 / refit cost diagnostics",3.21.1-SMS.1
+#    [SMS.1.E] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RefitShipRefresh.cs
+refit_ai_too,0,"[SMS.1.E] 是否对 AI 改造也刷新 / also refresh AI refits",3.21.1-SMS.1
+# -- 修档与通知 / Save data repair & notifications --
+#    [SMS.1.TON] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/TonnageCheck.cs
+tonnage_check,1,"[SMS.1.TON] 吨位一致性检查 / tonnage consistency check",3.22.0-SMS.2-port322
+#    [SMS.1.TON] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TonnageCheck.cs
+tonnage_check_strict,1,"[SMS.1.TON] 吨位检查严格模式 / strict tonnage check | 需要 tonnage_check = 1",3.22.0-SMS.2-port322
+#    [SMS.1.TON] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TonnageCheck.cs
+tonnage_repair,1,"[SMS.1.TON] 吨位修复 / tonnage repair | 需要 tonnage_check = 1 且 tonnage_check_strict = 1",3.22.0-SMS.2-port322
+#    [SMS.1.C] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/DuplicateDesignGuard.cs
+duplicate_design_guard,1,"[SMS.1.C] 重复 id 设计去重 / dedupe duplicate ids",3.21.1-SMS.1
+#    [SMS.1.B2][SMS.1.C3] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipDesignRelink.cs ; /TweaksAndFixes/SMS_Hotfix/Modules/ZeroedShipRepair.cs
+ship_design_relink,1,"[SMS.1.B2][SMS.1.C3] 读档期ships类特征检查=>把丢失designId的船重挂回设计 / relink 'lost designId ships' on load",3.21.1-SMS.1
+#    [SMS.1.C3] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ZeroedShipRepair.cs
+ship_design_regen,0,"[SMS.1.C3] 若断链船无设计，以自身信息再生成 (共享设计来源抢修；现在用S代替) / regenerate design for 'lost designId ships' according self",3.21.1-SMS.1
+#    [SMS.1.S] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/SharedBackfillBind.cs
+shared_backfill_bind,1,"[SMS.1.S] (仅限由B2触发)按事实同级舰指纹把缺设计船归入已有设计 / (trigger from B2 only) same-class rebind by fingerprint",3.21.1-SMS.1
+#    [SMS.1.S] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/SharedBackfillBind.cs
+shared_backfill_bind_max,0,"[SMS.1.S] 每次读档最多处理条数（0=全部）/ max per load",3.21.1-SMS.1
+# -- 叛乱成功率修复与调整 / Rebellion Fix & Tweak --
+#    [SMS.2.RBL] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RebellionFix.cs
+rebellion_probe,0,"[SMS.2.CQ] 殖民征服/叛乱事件成功率取证探针（DEBUG）",3.22.0-SMS.2-port322
+#    [SMS.2.RBL] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/RebellionFix.cs
+rebellion_chance_mode,2,"[SMS.2.CQ] 叛乱成功率处理：0=原版 1=翻转 2=自定义公式（默认） / rebellion chance: 0=vanilla 1=flipped 2=custom (default)",3.22.0-SMS.2-port322
+#    0 = 原版 / vanilla | 空城计成功防守，全力镇压大失败 / bugged: defender tonnage + => revolter succeed rate % +
+#    1 = 翻转 / flipped | 反转：吨位越多，起义成功率越低? / flipped: defender tonnage + => revolter succeed rate % -
+#    2 = 重构 / custom | 将目标吨位和成功率关系调整接近海军入侵 / Adjust tonnage requirement to similar as Naval Invasion.
+#    [SMS.2.RBL] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RebellionFix.cs
+rebellion_mult_start,0.6,"[SMS.2.CQ] 起义开局强度系数 / rebellion strength multiplier at start",3.22.0-SMS.2-port322
+#    [SMS.2.RBL] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RebellionFix.cs
+rebellion_mult_full,1,"[SMS.2.CQ] 起义满期强度系数 / rebellion strength multiplier at full",3.22.0-SMS.2-port322
+#    [SMS.2.RBL] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/RebellionFix.cs
+rebellion_ratio_full,1,"[SMS.2.CQ] 防御方吨位达到 required 的几倍即完全压制（与 1.7 征服对齐=1）/ multiplier on required tonnage to ensure suppress",3.22.0-SMS.2-port322
+# -- 杂项 / Misc --
+#    [SMS.1.T] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/CheatTechFix.cs
+cheat_tech_fix,1,"[SMS.1.T] 修正 dirtycheater 立即完成科技（读实际科技/分组）/ fix cheat tech completion",3.21.1-SMS.1
+
+# ============================================================
+# G. 战役后端（新档/过回合） / Campaign backend: new game & turn
+# -- 状态检查和避免冲突 / Status check & evading conflicts --
+#    [SMS.1.A] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/RefitChainFix.cs
+refit_chain_fix,1,"[SMS.1.A] 赔偿舰改造链重建 + 设计 status 归一化 / rebuild refit chain & normalise design status for reparation designs",3.21.1-SMS.1
+#    [SMS.1.A2] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ReparationMothball.cs
+reparation_mothball,1,"[SMS.1.A2] 赔偿舰到手时的状态规范化 / make reparation ships mothballed as default stat",3.21.1-SMS.1
+#    [SMS.1.B] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipLossGuard.cs
+ship_loss_guard,1,"[SMS.1.B] 丢船保护 (总开关) / prevent vessel invalid loss (switch)",3.21.1-SMS.1
+#    [SMS.1.B] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipLossGuard.cs
+priority_repair_over_crew,1,"[SMS.1.B] 修复优先级高于补员 (避免修理与低船员冲突) / repair before crew (solve confilct between Repairing & LowCrew)",3.21.1-SMS.1
+#    [SMS.1.STA] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/DesignStatusAudit.cs
+design_status_audit,1,"[SMS.1.STA] 设计状态审计 / audit design status | 读档初始化后，内存中设计和实存船在不同池里，因此需要再审",3.22.0-SMS.2-port322
+#    [SMS.1.STA] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/DesignStatusAudit.cs
+design_status_fix,1,"[SMS.1.STA] 设计状态归一化修复（补充A模块 / 统一 status = 0，避免修档机制下错判或混淆实存船） / normalise design status",3.22.0-SMS.2-port322
+#    [SMS.1.D] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/SunkGraceWindow.cs
+sunk_grace_window,1,"[SMS.1.D] 沉船(/拆船/已擦除)的删除缓冲窗口（总开关） / sunk grace window (module switch)",3.21.1-SMS.1
+#    [SMS.1.D] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/SunkGraceWindow.cs
+sunk_grace_turns,6,"[SMS.1.D] 沉船缓冲窗口宽限回合数 / sunk grace window turns",3.21.1-SMS.1
+# -- AI设计操作管理 / AI design ops controller --
+#    [SMS.1.F] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/AiRefitRestore.cs
+ai_refit_restore,1,"[SMS.1.F] AI 改造位移还原 / restore AI refit offsets",3.21.1-SMS.1
+#    [SMS.1.K] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/KeepLastDesign.cs
+keep_last_design,1,"[SMS.1.K] 保护最后一份/在役设计 (模块开关) / protect last & in-use designs (module switch)",3.21.1-SMS.1
+#    [SMS.1.K] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/KeepLastDesign.cs
+keep_last_design_trigger_predef,1,"[SMS.1.K] 命中 LAST 时每回合触发一次预制菜补齐 / trigger predef fill",3.21.1-SMS.1
+#    [SMS.1.K] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/KeepLastDesign.cs
+keep_last_design_age_turns,36,"[SMS.1.K] 在役设计可清理年龄（回合，0=永不）/ in-use age gate",3.21.1-SMS.1
+# -- 预制池控制&真混合 / Predef pool & true Mixed mode --
+#    [SMS.1.L] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/LogSuppress.cs
+suppress_predef_pack_errors,1,"[SMS.1.L] 抑制 TAF 逐包 no valid predefined designs 报错（噪音）/ suppress per-pack noise",3.21.1-SMS.1
+#    [SMS.1.G] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/TrueMixed.cs
+true_mixed,1,"[SMS.1.G] 真混合：Mixed 模式下强制走预制菜设计来源 / force predefined source in Mixed mode",3.21.1-SMS.1
+#    [SMS.1.G] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/TrueMixed.cs
+design_cap_per_type,6,"[SMS.1.G] 每舰种保留设计上限（饱和时跳过抽取）/ per-type design cap | 目前仅真混合使用该设置，且0也会导致真混合关闭",3.21.1-SMS.1
+#    [SMS.1.P] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+predef_pool_probe,0,"[SMS.1.P] 预制设计池探针 / predefined design pool probe",3.21.1-SMS.1
+#    [SMS.1.P] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+predef_alias_fallback,1,"[SMS.1.P] 真实桶缺舰种时按注册表回退（含别名桶）/ registry-level fallback",3.21.1-SMS.1
+#    [SMS.2.G2](T1) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_tech_tolerance,8,"[SMS.2.G2](T1) 允许差距＝设计科技数 - 玩家已完成数 / allowed gap: design techs minus player completed",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T1) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_tech_year_base,1920,"[SMS.2.G2](T1) 年份补正起点（此后每 N 年 +1 容忍；起点前不倒扣） / year bonus base (never negative before it)",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T1) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_tech_year_step,2,"[SMS.2.G2](T1) 年份补正步长（年） / year bonus step in years",3.22.0-SMS.2-port322
+#    final_tolerance = tolerance + max ( 0 , ( current_year - year_base ) / year_step )
+#    [SMS.2.G2](T2) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_year_ahead,2,"[SMS.2.G2](T2) 允许超前当前年的年数 / allow designs up to current year + N",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T2) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_year_window,10,"[SMS.2.G2](T2) 回溯窗口（年） / backward window length in years",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T3) switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_catchup,1,"[SMS.2.G2](T3) 兜底开关：按回退年数范围设计并补其缺失科技 / catch-up: pick below setup years older design, grant missing techs",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T3) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_catchup_back_min,3,"[SMS.2.G2](T3) 兜底最少回退年数 / catch-up: min years back",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T3) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_catchup_back_max,5,"[SMS.2.G2](T3) 兜底最多回退年数 / catch-up: max years back",3.22.0-SMS.2-port322
+#    [SMS.2.G2](T3) switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/PredefPoolProbe.cs
+true_mixed_catchup_cooldown_turns,6,"[SMS.2.G2](T3) 兜底冷却（回合） / catch-up cooldown in turns",3.22.0-SMS.2-port322
+
+# ============================================================
+# H. 临时探针与其它 / Temporary probes & misc
+# -- 通用诊断 / General diagnostics --
+#    Bottom

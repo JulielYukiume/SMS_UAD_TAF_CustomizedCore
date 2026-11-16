@@ -1,27 +1,115 @@
-﻿name,value,"comment"
-mode,apply,"apply | log（log 只观察不写入）/ observe-only"
-refit_chain_fix,1,"[SMS.1.A] 改造链重建 + 设计 status 归一化 / rebuild refit chain, normalise design status"
-reparation_copy_fix,1,"[SMS.1.A2b] 复制设计：新 Guid/当前年份/随机名/清改造链/赔偿件转可造 / rebuild copy"
-ship_loss_guard,1,"[SMS.1.B] 丢船保护 / prevent vessel loss"
-priority_repair_over_crew,1,"[SMS.1.B] 修复优先级高于补员 / repair before crew"
-duplicate_design_guard,1,"[SMS.1.B] 重复 id 设计去重 / dedupe duplicate ids"
-sunk_grace_window,1,"[SMS.1.B] 沉船宽限窗口 / sunk grace window"
-sunk_grace_turns,6,"[SMS.1.B] 宽限回合数 / grace turns"
-ship_design_relink,1,"[SMS.1.B2] 读档时按指纹把设计重挂回船 / relink lost designs on load"
-reparation_mothball,1,"[SMS.1.C3] 赔偿设计可用化 / make reparation designs usable"
-refit_cost_refresh,1,"[SMS.1.E] 改造费用刷新 / refresh refit cost"
-refit_cost_display,1,"[SMS.1.E] 改造费用显示修正 / fix refit cost display"
-refit_ai_too,0,"[SMS.1.E] 是否对 AI 改造也刷新造价（0=只玩家；1=含 AI，验证用）/ include AI refits"
-ai_refit_restore,1,"[SMS.1.F] AI 改造位移还原 / restore AI refit offsets"
-keep_last_design,1,"[SMS.1.K] 保护最后一份/在役设计 / protect last & in-use designs"
-keep_last_design_age_turns,36,"[SMS.1.K] 在役设计可清理年龄（回合，0=永不）/ in-use age gate"
-keep_last_design_trigger_predef,1,"[SMS.1.K] 命中 LAST 时每回合触发一次预制菜补齐 / trigger predef fill"
-shared_backfill_aggressive,1,"[SMS.1.S] 按事实同级舰指纹把缺设计船归入已有设计 / same-class rebind"
-shared_backfill_max,0,"[SMS.1.S] 每次读档最多处理条数（0=全部）/ max per load"
-true_mixed,1,"[SMS.1.G] 真混合：Mixed 模式下强制走预制菜设计来源 / force predefined source in Mixed mode"
-design_cap_per_type,6,"[SMS.1.G] 每舰种设计上限（饱和时不再强制抽取；0=off）/ per-type design cap"
-predef_alias_fallback,1,"[SMS.1.P] 真实桶缺舰种时按注册表回退（含别名桶）/ registry-level fallback"
-suppress_predef_pack_errors,1,"[SMS.1.L] 抑制 TAF 逐包 no valid predefined designs 报错（噪音）/ suppress per-pack noise"
-cheat_tech_fix,1,"[SMS.1.T] 修正 dirtycheater 立即完成科技（读实际科技/分组）/ fix cheat tech completion"
-shiptype_apply,1,"[SMS.1.Y2] 非原版舰种 UI 序号补全（核心逻辑参考 ShipTypesSupport 的 UI 四项；与 ShipTypesSupport 同装时建议置 0）/ shiptype UI index mapping (inspired by ShipTypesSupport)"
-predef_force_off,1,"[SMS.1.PF] taf_force_no_predef_designs=1 时一并关掉预制设计取用（避免 TAF 固定 6 舰种列表越界崩溃）/ force-off predef draws in custom battle"
+﻿# SMS_UAD_TAF_CustomizedCore（release）
+# 列：key,value,"description",since
+# since = 参数起始版本（空 = 3.21.1 基线及更早）
+# 级别：ALL=所有配置默认含；DEBUG=仅 DEBUG 配置；EXPERIMENTAL=代码默认隐藏启用（仅 DEBUG 配置）
+# RETIRE / REMOVED 不随包（见 docs/74）
+# 辅助说明行以 `#    ` 缩进；位置与顺序沿用 Excel（人工排版优先）
+# 模块行格式：`#    [MODULE] switch=<0/1> code=<路径>`
+
+# ============================================================
+# A. 总开关与全局 / Global switches
+# -- 全局 / Global --
+verbose,0,"启用输出调试日志 / 1 to verbose logging (DEBUG profile)",3.21.1-SMS.1
+
+# ============================================================
+# B. 通用前端：性能与交互 / Frontend: performance & interaction
+# -- 界面与交互 / UI & interaction --
+# -- 海面&空水模式 / Ocean & empty-water modes --
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_alpha,0.9,"[SMS.2.OCEAN] 简化海面不透明度（<1 透明）/ simplified ocean alpha (<1 partial transparent)",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_r,0.03,"[SMS.2.OCEAN] 简化海面颜色 R / simplified ocean color R",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_g,0.08,"[SMS.2.OCEAN] 简化海面颜色 G / simplified ocean color G",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_b,0.13,"[SMS.2.OCEAN] 简化海面颜色 B / simplified ocean color B",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_gloss,0.15,"[SMS.2.OCEAN] 简化海面光泽度 / simplified ocean glossiness",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_metallic,0.85,"[SMS.2.OCEAN] 简化海面金属度 / simplified ocean metallic",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+static_ocean_tiling,400,"[SMS.2.OCEAN] 简化海面贴图平铺(密度) / simplified ocean tiling",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_mode,1,"[SMS.2.OCEAN] 空水模式下的水底处理 / WaterBottom handling in empty-water mode | default Waterbottom @ -100(m)",3.22.0-SMS.2-port322
+#    0 = 原版 / vanilla | 1 = 调色 / recolor only | 2 = 关闭 / disable | 3 = 位移&调色 / adjust height & recolor
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_r,0.02,"[SMS.2.OCEAN] 水底颜色 R / WaterBottom color R",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_g,0.05,"[SMS.2.OCEAN] 水底颜色 G / WaterBottom color G",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_b,0.09,"[SMS.2.OCEAN] 水底颜色 B / WaterBottom color B",3.22.0-SMS.2-port322
+#    [SMS.2.OCEAN] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/NoneWaterBottom.cs
+none_waterbottom_height,-200,"[SMS.2.OCEAN] 水底位置偏移 / WaterBottom position offset (only applies when none_waterbottom_mode=3)",3.22.0-SMS.2-port322
+
+# ============================================================
+# C. 通用后端：数据与逻辑 / Backend: data & logic
+# -- 舰种兼容 / ShipType compatibility --
+#    [SMS.1.Y2] switch=1 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipTypeSupportApply.cs
+shiptype_apply,1,"[SMS.1.Y2] 非原版舰种 UI 序号补全 / shiptype UI index mapping (inspired by ShipTypesSupport DLL - 4 core UI dealings)",3.21.1-SMS.1
+# -- 船体与设计 / Hull and designs (RefreshHull) --
+# -- 数据处理 / Data processing --
+
+# ============================================================
+# D. 构造器：共享设计/造船厂 / Constructor: shared designs & shipyard
+# -- 光效 / Light Effects --
+#    (SceneManager) switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+constructor_probe_mode,2,"[SMS.2.CORE][was: SMS.2.SEC] 反射探针模式 / mode on constructor reflection probes (Fix Fore/Mid/Aft section 'miscolor' issue)",3.22.0-SMS.2-port322
+#    0 = 禁用所有反射探针 (缺乏反射的死板光效) / disable all reflection probes ("dead" light effects, same with 3.22.0 Beta#4~#6)
+#    1 = 只保留全局探针 (偏冷蓝色调) / only applies constructor_probe_global_intensity (cold-blueish steels)
+#    2 = 保留全部探针，局部探针下移到船底以下 / applies all probes, while non-global probes move below hull to prevent issue
+#    (SceneManager) switch=0 code=/TweaksAndFixes/Harmony/SceneManager.cs
+constructor_probe_global_intensity,1.4,"[SMS.2.CORE][was: SMS.2.SEC] 全局光照反射(探针)强度 / Global reflection probe intensity | Vanilla = 1.75; SMS_CC default =1.4",3.22.0-SMS.2-port322
+# -- 色差问题的其它尝试 / Other attempts on colour band issue --
+# -- 杂项 / Misc --
+
+# ============================================================
+# E. 战斗：场景内 / Battle: in-scene
+# -- 舰船航迹 / Ship wakes in non-default ocean modes --
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_points,6,"[SMS.2.WAKE] 航迹生成点数量&模式 / ship wake generating points and mode (default use 6; others refer below)",3.22.0-SMS.2-port322
+#    船体点位 / Points on hull: 中点 / Centre(C) - Yellow; 左舷 / Port(P) - Red; 右舷 / Starboard(S) - Green; 艏柱 / Rostrum(N) - Blue;
+#    船体点位 / Points on hull: 舰艉 Stern(T) & 螺旋桨 Propellers(a1-a4) - White-Grey.
+#    1=C | 2=PS | 3=PST | 4=PSTN (all 4 directions, minimum to show full trace shape) | 5=PSN+a1a2 (2 on tail)
+#    6=PSTN+a1a2 (3 on tail) | 7=PSN+a1a2a3a4 (4 on tail) | 8=PSTN+a1a2a3a4 (5 on tail) | 9=all above
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_color_mode,1,"[SMS.2.WAKE] 彩色航迹（仿航行灯：左红/右绿/艏蓝/中黄）/ colored wake (refer above colors) | 0 = all use default White-Grey",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_dash,1,"[SMS.2.WAKE] 航迹中间条带用虚线 / ship wake dashed inner bands",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_extra_width,2,"[SMS.2.WAKE] 舷侧点额外外扩宽度（米）/ extra lateral offset (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_width,2.5,"[SMS.2.WAKE] 航迹条带宽度（米）/ ship wake band width (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_fade_pow,2.5,"[SMS.2.WAKE] 航迹渐隐指数 n / ship wake fade exponent (alpha ∝ t^n)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_seconds,20,"[SMS.2.WAKE] 航迹保留时间（战斗内秒）/ ship wake retention (seconds-in-battle)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/ShipWakeHint.cs
+ship_wake_alpha,120,"[SMS.2.WAKE] 航迹基础亮度 / ship wake base brightness (0~255)",3.22.0-SMS.2-port322
+# -- 鱼雷航迹 / Torpedo wakes in non-default ocean modes --
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_width,2,"[SMS.2.WAKE] 雷迹宽度（米）/ torpedo wake width (m)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_fade_pow,2.5,"[SMS.2.WAKE] 雷迹渐隐指数 n / torpedo wake fade exponent (alpha ∝ t^n)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_seconds,25,"[SMS.2.WAKE] 雷迹保留时间（战斗内秒）/ torpedo wake retention (seconds-in-battle)",3.22.0-SMS.2-port322
+#    [SMS.2.WAKE] switch=0 code=/TweaksAndFixes/SMS_Hotfix/Modules/TorpedoWakeHint.cs
+torp_wake_alpha,160,"[SMS.2.WAKE] 雷迹基础亮度 / torpedo wake base brightness (0~255)",3.22.0-SMS.2-port322
+# -- 杂项 / Misc --
+
+# ============================================================
+# F. 战役前端（存读档） / Campaign frontend: save/load
+# -- 舰船信息刷新 / Ship Info Refreshing --
+# -- 修档与通知 / Save data repair & notifications --
+# -- 叛乱成功率修复与调整 / Rebellion Fix & Tweak --
+# -- 杂项 / Misc --
+
+# ============================================================
+# G. 战役后端（新档/过回合） / Campaign backend: new game & turn
+# -- 状态检查和避免冲突 / Status check & evading conflicts --
+# -- AI设计操作管理 / AI design ops controller --
+# -- 预制池控制&真混合 / Predef pool & true Mixed mode --
+
+# ============================================================
+# H. 临时探针与其它 / Temporary probes & misc
+# -- 通用诊断 / General diagnostics --
+#    Bottom
