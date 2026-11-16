@@ -4,7 +4,12 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Company>NathanKell</Company>
+    <Company>NathanKell &amp; DukeDagor, SMS fork by Yukiume</Company>
+    <Product>TweaksAndFixes (SMS fork)</Product>
+    <Description>TAF 3.22.0 + SMS custom core (SMS fork by Yukiume)</Description>
+    <Copyright>NathanKell &amp; DukeDagor; SMS fork by Yukiume</Copyright>
+    <FileVersion>3.22.0.2</FileVersion>
+    <InformationalVersion>3.22.0-SMS.2</InformationalVersion>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
 
