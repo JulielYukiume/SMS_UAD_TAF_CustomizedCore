@@ -25,7 +25,7 @@ namespace TAFHotfixBatch1.Modules
     ///
     /// 开关：`refit_cost_display`（默认 1；0 = 回到原始的旧价显示）。
     /// </summary>
-    internal static class RefitCostDisplay
+    internal static class RefitInfoDisplay
     {
         private static bool _inCost;        // 防重入（rd.Cost() 会再次进入本 Postfix）
         private static int _logged;
@@ -36,9 +36,9 @@ namespace TAFHotfixBatch1.Modules
 
         internal static void Install(HarmonyLib.Harmony harmony)
         {
-            if (!HotfixParams.RefitCostDisplay)
+            if (!HotfixParams.RefitInfoDisplay)
             {
-                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: disabled by config");
+                HotfixLog.Info("[SMS.1.E] RefitInfoDisplay: disabled by config");
                 return;
             }
 
@@ -51,13 +51,13 @@ namespace TAFHotfixBatch1.Modules
                     return;
                 }
                 harmony.Patch(cost, postfix: new HarmonyMethod(
-                    AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Cost))));
+                    AccessTools.Method(typeof(RefitInfoDisplay), nameof(Postfix_Cost))));
 
                 // 当前排水量：界面读 Ship::Weight(force, updateCache) —— 这是 11,472 的真正来源
                 var wm = AccessTools.Method(typeof(Ship), "Weight");
                 if (wm != null)
                     harmony.Patch(wm, postfix: new HarmonyMethod(
-                        AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Weight))));
+                        AccessTools.Method(typeof(RefitInfoDisplay), nameof(Postfix_Weight))));
                 else
                     HotfixLog.Warn("[SMS.1.E] Ship::Weight not found -- displacement display fix inactive");
 
@@ -86,7 +86,7 @@ namespace TAFHotfixBatch1.Modules
                 // 只要挂上就有污染风险，因此**彻底移除挂载**；下面保留注释仅作历史记录。
                 //
                 // 若将来确实需要"改造中显示改造设计吨位"，正确做法是在 UI 层单独取值
-                // （例如 Postfix `CampaignFleetWindow`/`RefitCostDisplay` 的文本拼接处），
+                // （例如 Postfix `CampaignFleetWindow`/`RefitInfoDisplay` 的文本拼接处），
                 // **绝不能**改写 `Ship.TonnageMin/TonnageMax`。
                 //
                 // if (HotfixParams.RefitTonnageDisplay)
@@ -96,32 +96,32 @@ namespace TAFHotfixBatch1.Modules
                 //         var tm = AccessTools.Method(typeof(Ship), nm);
                 //         if (tm == null) { HotfixLog.Warn("[SMS.1.E] Ship::" + nm + " not found"); continue; }
                 //         harmony.Patch(tm, postfix: new HarmonyMethod(
-                //             AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_Tonnage))));
+                //             AccessTools.Method(typeof(RefitInfoDisplay), nameof(Postfix_Tonnage))));
                 //     }
-                //     HotfixLog.Warn("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override ENABLED"
+                //     HotfixLog.Warn("[SMS.1.E] RefitInfoDisplay: TonnageMin/Max override ENABLED"
                 //                    + " (refit_tonnage_display=1) -- 会在读档时改写改造船的吨位边界");
                 // }
-                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: TonnageMin/Max override disabled permanently (pollutes tonnage; see docs/61)");
+                HotfixLog.Info("[SMS.1.E] RefitInfoDisplay: TonnageMin/Max override disabled permanently (pollutes tonnage; see docs/61)");
 
                 var maint = AccessTools.Method(typeof(Ship), "MaintenanceCost");
                 if (maint != null)
                     harmony.Patch(maint, postfix: new HarmonyMethod(
-                        AccessTools.Method(typeof(RefitCostDisplay), nameof(Postfix_MaintenanceCost))));
+                        AccessTools.Method(typeof(RefitInfoDisplay), nameof(Postfix_MaintenanceCost))));
 
-                HotfixLog.Info("[SMS.1.E] RefitCostDisplay: patched Ship::Cost"
+                HotfixLog.Info("[SMS.1.E] RefitInfoDisplay: patched Ship::Cost"
                                + (maint != null ? " + Ship::MaintenanceCost" : "")
                                + "  (ships under Refit report the refit design's values)"
                                + "  mode=" + HotfixParams.Mode);
             }
             catch (Exception e)
             {
-                HotfixLog.Error("[SMS.1.E] RefitCostDisplay install failed: " + e);
+                HotfixLog.Error("[SMS.1.E] RefitInfoDisplay install failed: " + e);
             }
         }
 
         internal static void Postfix_Cost(Ship __instance, ref float __result)
         {
-            if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+            if (!HotfixParams.IsApply || !HotfixParams.RefitInfoDisplay) return;
             if (_inCost) return;
 
             try
@@ -207,7 +207,7 @@ namespace TAFHotfixBatch1.Modules
 
         internal static void Postfix_MaintenanceCost(Ship __instance, ref float __result)
         {
-            if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+            if (!HotfixParams.IsApply || !HotfixParams.RefitInfoDisplay) return;
             if (_inCost) return;
 
             try
@@ -234,7 +234,7 @@ namespace TAFHotfixBatch1.Modules
         /// <summary>当前排水量：改造中的船返回"设计"的 Weight（强制计算，不写缓存）。</summary>
         internal static void Postfix_Weight(Ship __instance, ref float __result)
         {
-            if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+            if (!HotfixParams.IsApply || !HotfixParams.RefitInfoDisplay) return;
             if (_inCost) return;
 
             try
@@ -285,7 +285,7 @@ namespace TAFHotfixBatch1.Modules
         // /// <summary>`TonnageMin()` / `TonnageMax()` 的共用 Postfix。</summary>
         // internal static void Postfix_Tonnage(Ship __instance, ref float __result, MethodBase __originalMethod)
         // {
-        // if (!HotfixParams.IsApply || !HotfixParams.RefitCostDisplay) return;
+        // if (!HotfixParams.IsApply || !HotfixParams.RefitInfoDisplay) return;
         // if (_inCost) return;
         //
         // try

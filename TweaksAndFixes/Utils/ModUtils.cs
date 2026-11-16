@@ -1797,15 +1797,57 @@ namespace TweaksAndFixes
             return result;
         }
 
-        public static void FillGradeData<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T> dict, int max)
+        /// <summary>[SMS3-20d] 每列"算不算有数据"的判定规则（按用户 2026-11-15 的口径）。</summary>
+        public enum GradeValueRule
         {
-            int maxGradeFound = 5;
-            for (int grade = 6; grade <= max; ++grade)
+            /// <summary>数值 > 0（guns 射表：0 = 没写）</summary>
+            PositiveNumber,
+            /// <summary>数值 != 0（partModels 的 scale/max_scale：0 = 没写；-1 = 原版默认，放行）</summary>
+            NonZeroNumber,
+            /// <summary>字符串非空（partModels 的 model_N）</summary>
+            NonEmptyString,
+        }
+
+        public static bool IsValidGradeValue<T>(T value, GradeValueRule rule)
+        {
+            if (value == null)
+                return false;
+
+            if (rule == GradeValueRule.NonEmptyString)
+                return value is string s && !string.IsNullOrWhiteSpace(s);
+
+            try
             {
-                if (dict.ContainsKey(grade))
-                    maxGradeFound = grade;
-                else
-                    dict[grade] = dict[maxGradeFound];
+                double d = System.Convert.ToDouble(value);
+                if (double.IsNaN(d) || double.IsInfinity(d))
+                    return false;
+                return rule == GradeValueRule.NonZeroNumber ? d != 0 : d > 0;
+            }
+            catch
+            {
+                return value is string str && !string.IsNullOrWhiteSpace(str);
+            }
+        }
+
+        /// <summary>
+        /// [SMS3-20d] **逐列、向前回滚**：对 grade 1..max，若该级缺失或值不满足规则，复制最近一个有效级的值。
+        /// 只回滚真正缺的列，不整级回滚（Mk6 的 model 缺失不影响 Mk6 的 weight，只要 weight 自己有值）。
+        /// </summary>
+        public static void FillGradeData<T>(Il2CppSystem.Collections.Generic.Dictionary<int, T> dict, int max,
+                                            GradeValueRule rule = GradeValueRule.PositiveNumber)
+        {
+            int lastValid = -1;
+
+            for (int grade = 1; grade <= max; ++grade)
+            {
+                if (dict.ContainsKey(grade) && IsValidGradeValue(dict[grade], rule))
+                {
+                    lastValid = grade;
+                    continue;
+                }
+
+                if (lastValid > 0)
+                    dict[grade] = dict[lastValid];
             }
         }
 

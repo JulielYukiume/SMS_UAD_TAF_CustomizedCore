@@ -7,7 +7,7 @@ namespace TAFHotfixBatch1.Modules
     // S v3: bind design-less ships to an EXISTING same-class design.
     // Fix vs v2: FromStore's 2nd argument is Nullable<Guid> (value type) — passing null
     // throws NullReferenceException. We now pass a non-null nullable carrying the ship's own id.
-    internal static class SharedBackfillProbe
+    internal static class SharedBackfillBind
     {
         private static readonly HashSet<string> _skip = new HashSet<string>();
         private static int _made, _failed, _noClass;
@@ -17,8 +17,8 @@ namespace TAFHotfixBatch1.Modules
 
         internal static void Install(HarmonyLib.Harmony harmony)
         {
-            if (!HotfixParams.SharedBackfillAggressive) { HotfixLog.Info("[SMS.1.S] SharedBackfill: disabled"); return; }
-            HotfixLog.Info("[SMS.1.S] SharedBackfill v3: ready  max=" + HotfixParams.SharedBackfillMax + "  mode=" + HotfixParams.Mode);
+            if (!HotfixParams.SharedBackfillBind) { HotfixLog.Info("[SMS.1.S] SharedBackfill: disabled"); return; }
+            HotfixLog.Info("[SMS.1.S] SharedBackfill v3: ready  max=" + HotfixParams.SharedBackfillBindMax + "  mode=" + HotfixParams.Mode);
         }
 
         internal static void RunNow()
@@ -42,7 +42,7 @@ namespace TAFHotfixBatch1.Modules
                 for (int i = 0; i < cand.Count; i++)
                 {
                     var v = cand[i];
-                    if (HotfixParams.SharedBackfillMax > 0 && _made >= HotfixParams.SharedBackfillMax) break;
+                    if (HotfixParams.SharedBackfillBindMax > 0 && _made >= HotfixParams.SharedBackfillBindMax) break;
                     if (!HotfixParams.IsApply) { HotfixLog.Info("[SMS.1.S][log] would bind '" + Name(v) + "'"); continue; }
                     BindBest(v, cc);
                 }

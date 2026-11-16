@@ -15,8 +15,11 @@ namespace TweaksAndFixes
     ///   · 战斗场景根对象叫什么（Beta6 里是 `LevelBattle`）
     ///   · 它们下面是否存在 `Sun` / `Scene Lighting` / 海面对象（Beta6 的 ConfigureForPreview 依赖这些名字）
     ///
-    /// 只读：不改任何对象，只打印一遍。
-    /// 开关：`scene_probe`（默认 1）。
+    /// 结构（SMS2-P1 之后）：
+    ///   · **功能部分恒执行**（不受任何开关控制）：
+    ///       `DelayedApplyOceanMode`（状态切换后应用海面模式）、
+    ///       `BindScene`（登记 LevelConstructor/LevelBattle/PreviewInited + SetOceanMode + 反射强度 + oceanGraphics 应用）
+    ///   · **只读探针**由 `scene_probe` 控制（默认 0，仅 DEBUG 配置）：只打印一遍场景结构。
     /// </summary>
     [HarmonyPatch(typeof(GameManager))]
     internal static class Patch_SceneProbe
@@ -32,28 +35,31 @@ namespace TweaksAndFixes
         [HarmonyPatch("ChangeState")]
         internal static void Postfix_ChangeState(GameManager.GameState newState)
         {
-            if (!HotfixParams.SceneProbe) return;
-            if (_logged >= 6) return;
-
             string state = "";
             try { state = newState.ToString(); } catch { }
 
-            // ★ [SMS.2.OCEAN] 任何状态都延迟应用一次海面模式（主菜单/港口场景也要生效）
+            // ★ [SMS2-P1] 功能部分：**恒执行**，不再受 `scene_probe` 控制。
+            //   曾经这里第一行就是 `if (!HotfixParams.SceneProbe) return;`，
+            //   而 scene_probe 默认关闭 ⇒ 下面这些"真实功能"从上线起一直是静默失效的：
+            //     · DelayedApplyOceanMode：任何状态后 30 帧应用一次海面模式（主菜单/港口也生效）
+            //     · BindScene：登记 LevelConstructor / LevelBattle / PreviewInited
+            //       （`Patch_SceneManagerPreview.ConfigureForPreview` 依赖 PreviewInited，
+            //         否则构造器/部件预览光照完全不生效）
+            //     · BindScene 内的 SetOceanMode / ReflectionIntensity.Apply / DelayedOceanApply
             try { MelonLoader.MelonCoroutines.Start(DelayedApplyOceanMode(state)); }
             catch (Exception e) { HotfixLog.Warn("[SMS.2.OCEAN] schedule: " + e.Message); }
 
-            // 只关心构造器/战斗相关状态
-            if (state != "Constructor" && state != "Battle" && state != "LoadingBattle"
-                && state != "LoadingConstructor" && state != "CustomBattle")
-                return;
+            bool relevant = state == "Constructor" || state == "Battle" || state == "LoadingBattle"
+                            || state == "LoadingConstructor" || state == "CustomBattle";
+            if (!relevant) return;
 
+            try { BindScene(state); }
+            catch (Exception e) { HotfixLog.Warn("[SMS.2.SCENE] bind: " + e.Message); }
+
+            // 只读探针：仍由 `scene_probe` 控制（默认关；改后它才是名副其实的探针）
+            if (!HotfixParams.SceneProbe || _logged >= 6) return;
             _logged++;
-
-            try
-            {
-                Probe(state);
-                BindScene(state);
-            }
+            try { Probe(state); }
             catch (Exception e) { HotfixLog.Warn("[SMS.2.SCENE] probe: " + e.Message); }
         }
 

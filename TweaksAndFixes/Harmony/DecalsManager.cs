@@ -7,7 +7,9 @@ using UnityEngine;
 namespace TweaksAndFixes
 {
     /// <summary>
-    /// [SMS.1.DECAL] 命中贴花按**炮弹口径**缩放（移植 Beta6 的 `Patch_Effect` + `Patch_DecalsManager`）。
+    /// [SMS.1.DECAL] = duke 原文件 `Harmony/DecalsManager.cs` 的移植（`Patch_Effect` + `Patch_DecalsManager`）。
+///   注：Beta6 反编译版里叫 `TweaksAndFixes.Harmony/Patch_DecalsManager.cs`；我们的 port 基树漏了该文件，
+///   因此按 1.7 签名重写了一份等价实现（含 try/catch 与口径回退）。
     ///
     /// 为什么需要：
     ///   原版所有弹孔尺寸固定 ⇒ 打穿装甲的穿甲弹与表面爆炸一样大，
@@ -16,8 +18,8 @@ namespace TweaksAndFixes
     ///   里按 `GunData.shellSize` 缩放贴花（鱼雷 ×0.25）。
     ///
     /// 配置：
-    ///   · `decal_size`（0/1，默认 1）—— 总开关
-    ///   · `taf_shell_hit_decal_size_multiplier`（默认 10）—— 与 duke 同名，兼容其配置习惯
+    ///   · 恒开（不再提供 decal_size 开关；`decal_size` 已 REMOVED）
+    ///   · `taf_shell_hit_decal_size_multiplier`（默认 10）—— 与 duke 同名，唯一调参入口
     ///
     /// 注意（1.7 与 Beta6 的签名差异）：
     ///   · 1.7：`Effect.Hit(Ship, string, Vector3, Quaternion, Part, Ship.HitPrecalc, float, Projectile)`
@@ -35,7 +37,6 @@ namespace TweaksAndFixes
         {
             try
             {
-                if (!HotfixParams.DecalSize) return;
                 if (fromWeapon == null || fromWeapon.data == null) return;
 
                 if (fromWeapon.data.isTorpedo) Caliber = "torp";
@@ -48,7 +49,6 @@ namespace TweaksAndFixes
         [HarmonyPatch("Hit")]
         internal static void Postfix_Hit()
         {
-            if (!HotfixParams.DecalSize) return;
             Caliber = "";
         }
     }
@@ -63,7 +63,6 @@ namespace TweaksAndFixes
         {
             try
             {
-                if (!HotfixParams.DecalSize) return;
                 if (dp == null) return;
 
                 var guns = G.GameData != null ? G.GameData.guns : null;

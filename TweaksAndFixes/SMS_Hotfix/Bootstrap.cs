@@ -15,12 +15,12 @@ namespace TAFHotfixBatch1
             HotfixLog.Info("==================================================");
 
             Modules.RefitChainFix.Install(harmony);
-            Modules.RefitCostRefresh.Install(harmony);
-            Modules.RefitCostDisplay.Install(harmony);
+            Modules.RefitShipRefresh.Install(harmony);
+            Modules.RefitInfoDisplay.Install(harmony);
             Modules.AiRefitRestore.Install(harmony);
             Modules.DebugAiRefit.Install(harmony);
             Modules.KeepLastDesign.Install(harmony);
-            Modules.SharedBackfillProbe.Install(harmony);
+            Modules.SharedBackfillBind.Install(harmony);
             Modules.ReparationCopyFix.Install(harmony);
             Modules.ReparationMothball.Install(harmony);
             Modules.ShipLossGuard.Install(harmony);
@@ -42,6 +42,8 @@ namespace TAFHotfixBatch1
             Modules.TrueMixed.Install(harmony);
             Modules.ShipDesignRelink.Install(harmony);
             Modules.SunkGraceWindow.Install(harmony);
+        Modules.HitChanceGrid.Install(harmony);
+        Modules.PartUnlockStrict.Install(harmony);
 
             HotfixLog.Info("SMS hotfix install complete.");
         }

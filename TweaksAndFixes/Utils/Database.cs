@@ -34,19 +34,110 @@ namespace TweaksAndFixes
         private static List<Dictionary<string, string>> _TorpTubeTechs;
         private static List<Dictionary<string, int>> _TorpTubeYears;
 
+        /// <summary>
+        /// [SMS.3.GRADE] 按**实际数据**推算四张表的尺寸（不再依赖 Config 常量）。
+        ///
+        /// 背景：duke 的 Mk6+ 支持只做到 "guns.csv 允许无限列"（Beta#5），
+        /// 科技表侧仍是 `MaxGunGrade=5 / MaxTorpGrade=5 / MaxTorpBarrels=5` 的定长数组。
+        /// 当 mod 只在 `technologies.csv` 里写 `gun(x;6)`（而 guns.csv 没有 grade-6 列）时，
+        /// `GradeExtensions.GetMaxGrade` 推不出 6 ⇒ `_GunGradeTechs[cal, 6]` 越界（Silly 实测）。
+        ///
+        /// 做法：遍历 technologies 的 effects，取 `gun` / `torp_mark` / `torpedo_tubes` 的最大值，
+        /// 与 vanilla 下限取 max 后建表；同时把 Config 同步到该上限（下游循环靠它）。
+        /// 时机：只能在 FillDatabase（PostProcess 之后）；GradeExtensions 在 PostProcessAll 的 Prefix 跑，那时 effects 还没解析。
+        /// </summary>
+        private static void ComputeTechCaps(out int maxCal, out int maxGrade, out int maxTorpGrade, out int maxTubes)
+        {
+            // vanilla 下限，保证老数据行为完全不变
+            maxCal = 20;
+            maxGrade = Config.MaxGunGrade;
+            maxTorpGrade = Config.MaxTorpGrade;
+            maxTubes = Config.MaxTorpBarrels;
+
+            try
+            {
+                var techs = G.GameData != null ? G.GameData.technologies : null;
+                if (techs == null) return;
+
+                foreach (var kvT in techs)
+                {
+                    var effects = kvT.Value != null ? kvT.Value.effects : null;
+                    if (effects == null) continue;
+
+                    foreach (var kvE in effects)
+                    {
+                        if (kvE.Value == null) continue;
+                        switch (kvE.Key)
+                        {
+                            case "gun":
+                                foreach (var row in kvE.Value)
+                                {
+                                    if (row == null || row.Count < 2) continue;
+                                    if (float.TryParse(row[0], System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands, ModUtils._InvariantCulture, out var calF))
+                                        maxCal = Math.Max(maxCal, Mathf.RoundToInt(calF));
+                                    if (int.TryParse(row[1], out var grade))
+                                        maxGrade = Math.Max(maxGrade, grade);
+                                }
+                                break;
+
+                            case "torp_mark":
+                                foreach (var row in kvE.Value)
+                                {
+                                    if (row == null || row.Count < 1) continue;
+                                    if (int.TryParse(row[0], out var tg))
+                                        maxTorpGrade = Math.Max(maxTorpGrade, tg);
+                                }
+                                break;
+
+                            case "torpedo_tubes":
+                                foreach (var row in kvE.Value)
+                                {
+                                    if (row == null) continue;
+                                    foreach (var cell in row)
+                                    {
+                                        if (int.TryParse(cell, out var tubes))
+                                            maxTubes = Math.Max(maxTubes, tubes);
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] ComputeTechCaps failed, fallback to vanilla caps: " + e.Message);
+            }
+        }
+
         public static void FillDatabase()
         {
-            _GunGradeTechs = new string[21, Config.MaxGunGrade + 1];
-            _GunGradeYears = new int[21, Config.MaxGunGrade + 1];
-            _TorpGradeTechs = new string[Config.MaxTorpGrade + 1];
-            _TorpGradeYears = new int[Config.MaxTorpGrade + 1];
+            ComputeTechCaps(out int maxCal, out int maxGrade, out int maxTorpGrade, out int maxTubes);
+
+            if (maxGrade != Config.MaxGunGrade || maxTorpGrade != Config.MaxTorpGrade || maxTubes != Config.MaxTorpBarrels)
+            {
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] data-driven caps: cal<=" + maxCal
+                    + " gunGrade<=" + maxGrade + " torpGrade<=" + maxTorpGrade + " tubes<=" + maxTubes);
+                Config.MaxGunGrade = maxGrade;
+                Config.MaxTorpGrade = maxTorpGrade;
+                Config.MaxTorpBarrels = maxTubes;
+            }
+
+            // [SMS3-20b] 抬高上限后必须补齐 GunData / PartModelData 的 grade 字典，
+            //   否则原生 Part.GetModelNameScale(grade=6) 取到 null ⇒ Ui.RefreshParts 抛 ArgumentNullException。
+            GradeExtensions.ReapplyGradeData();
+
+            _GunGradeTechs = new string[maxCal + 1, maxGrade + 1];
+            _GunGradeYears = new int[maxCal + 1, maxGrade + 1];
+            _TorpGradeTechs = new string[maxTorpGrade + 1];
+            _TorpGradeYears = new int[maxTorpGrade + 1];
             _TorpTubeTechs = new();
-            for (int i = 0; i < Config.MaxTorpBarrels + 1; i++)
+            for (int i = 0; i < maxTubes + 1; i++)
             {
                 _TorpTubeTechs.Add(new Dictionary<string, string>());
             }
             _TorpTubeYears = new();
-            for (int j = 0; j < Config.MaxTorpBarrels + 1; j++)
+            for (int j = 0; j < maxTubes + 1; j++)
             {
                 _TorpTubeYears.Add(new Dictionary<string, int>());
             }
@@ -128,7 +219,15 @@ namespace TweaksAndFixes
                                 if (!int.TryParse(effList[1], out var grade))
                                     continue;
                                 int cal = Mathf.RoundToInt(calF);
-                                //Melon<TweaksAndFixes>.Logger.Msg($"Gun of {cal}in, grade {grade} needs tech {kvpT.key} of year {kvpT.Value.year}");
+                                // [SMS.3.GRADE] 写侧边界检查：不再抛异常中断 FillDatabase（会连锁出 RefreshConstructorInfo 的 NRE 刷屏）
+                                if (cal < 0 || cal >= _GunGradeTechs.GetLength(0)
+                                    || grade < 0 || grade >= _GunGradeTechs.GetLength(1))
+                                {
+                                    Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] gun tech out of range: " + kvpT.Key
+                                        + " cal=" + cal + " grade=" + grade + " (table " + _GunGradeTechs.GetLength(0)
+                                        + "x" + _GunGradeTechs.GetLength(1) + ")");
+                                    continue;
+                                }
                                 _GunGradeTechs[cal, grade] = kvpT.Key;
                                 _GunGradeYears[cal, grade] = kvpT.Value.year;
                             }
@@ -142,6 +241,12 @@ namespace TweaksAndFixes
                                     continue;
                                 if (!int.TryParse(effList[0], out var grade))
                                     continue;
+                                if (grade < 0 || grade >= _TorpGradeTechs.Length)
+                                {
+                                    Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] torp_mark tech out of range: " + kvpT.Key
+                                        + " grade=" + grade + " (table " + _TorpGradeTechs.Length + ")");
+                                    continue;
+                                }
                                 _TorpGradeTechs[grade] = kvpT.Key;
                                 _TorpGradeYears[grade] = kvpT.Value.year;
                             }
@@ -186,6 +291,12 @@ namespace TweaksAndFixes
                             foreach (string item in list)
                             {
                                 // text = text + item + " ";
+                                if (tubes < 0 || tubes >= _TorpTubeTechs.Count)
+                                {
+                                    Melon<TweaksAndFixes>.Logger.Warning("[SMS.3.GRADE] torpedo_tubes tech out of range: " + kvpT.Key
+                                        + " tubes=" + tubes + " (table " + _TorpTubeTechs.Count + ")");
+                                    continue;
+                                }
                                 _TorpTubeTechs[tubes][item] = kvpT.Key;
                                 _TorpTubeYears[tubes][item] = kvpT.Value.year;
                             }
@@ -472,7 +583,7 @@ namespace TweaksAndFixes
 
         public static string GetTorpTubeTech(int tubes, string shipTypes)
         {
-            if (tubes < 0 || tubes >= Config.MaxTorpBarrels)
+            if (tubes < 0 || tubes >= _TorpTubeTechs.Count)
             {
                 Melon<TweaksAndFixes>.Logger.Error($"Tried to get Torp Tube Tech for tube count {tubes}");
                 return string.Empty;
@@ -493,25 +604,29 @@ namespace TweaksAndFixes
         public static int MaxGunGradeFromTechs(int cal, HashSet<string> techs, out string? techFound)
         {
             techFound = null;
-            for (int i = 1; i <= Config.MaxGunGrade; ++i)
+            if (cal < 0 || cal >= _GunGradeTechs.GetLength(0))
+                return 0;
+            int maxG = _GunGradeTechs.GetLength(1) - 1;   // [SMS.3.GRADE] 以表为准，避免 Config 被别处改小后越界
+            for (int i = 1; i <= maxG; ++i)
                 if (techs.Contains(_GunGradeTechs[cal, i]))
                     techFound = _GunGradeTechs[cal, i];
                 else
                     return i - 1;
 
-            return Config.MaxGunGrade;
+            return maxG;
         }
 
         public static int MaxTorpGradeFromTechs(HashSet<string> techs, out string? techFound)
         {
             techFound = null;
-            for (int i = 1; i <= Config.MaxTorpGrade; ++i)
+            int maxT = _TorpGradeTechs.Length - 1;
+            for (int i = 1; i <= maxT; ++i)
                 if (techs.Contains(_TorpGradeTechs[i]))
                     techFound = _TorpGradeTechs[i];
                 else
                     return i - 1;
 
-            return Config.MaxTorpGrade;
+            return maxT;
         }
     }
 }

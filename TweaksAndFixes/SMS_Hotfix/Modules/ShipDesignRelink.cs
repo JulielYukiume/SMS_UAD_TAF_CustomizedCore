@@ -399,7 +399,7 @@ namespace TAFHotfixBatch1.Modules
                 HotfixLog.Debug("[SMS.1.B2] stage1 ok: vessels=" + list.Count + " designs=" + designs
                                + " designKeys=" + byParts.Count + " -- scanning ship-like entries");
                 Misses.Clear(); Finished = false;
-            try { RepairNotifier.ResetCounters(); SharedBackfillProbe.ResetCounters(); } catch { }
+            try { RepairNotifier.ResetCounters(); SharedBackfillBind.ResetCounters(); } catch { }
             int shipLike = 0, relinked = 0, miss = 0, fallbackUsed = 0, storeMapUsed = 0, madeDesign = 0;
                 for (int i = 0; i < list.Count; i++)
                 {
@@ -548,7 +548,7 @@ namespace TAFHotfixBatch1.Modules
                                + "  (mode=" + HotfixParams.Mode + ", attempt=" + _attempts + ")");
             Finished = true;
             try { TrueMixed.PrewarmIfNeeded(); } catch (Exception pe) { HotfixLog.Warn("[SMS.1.G] prewarm hook: " + pe.Message); }
-            try { if (HotfixParams.SharedBackfillAggressive) SharedBackfillProbe.RunNow(); } catch { }
+            try { if (HotfixParams.SharedBackfillBind) SharedBackfillBind.RunNow(); } catch { }
             try { RepairNotifier.NotifyOnLoadComplete(); } catch { }
         }
 

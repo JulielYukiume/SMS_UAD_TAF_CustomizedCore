@@ -2038,6 +2038,22 @@ namespace TweaksAndFixes
             }
         }
 
+        /// <summary>
+        /// [SMS3-22] 清空 hull 的 middles。duke 原实现"先删光再查 order"的用意就在这里：
+        /// `InitSectionsCyclical` 是**增量**的（按 h.middles.Count % baseCount 追加），
+        /// 若保留旧段再回退，段数虽对、但变体顺序残留 ⇒ 表现为"某个舯段的变化时有时无"。
+        /// </summary>
+        private static void DestroyAllMiddles(Ship s)
+        {
+            var h = s.hull;
+            while (h.middles.Count > 0)
+            {
+                var section = h.middles[^1];
+                h.middles.RemoveAt(h.middles.Count - 1);
+                GameObject.DestroyImmediate(section);
+            }
+        }
+
         private static void UpdateSections(Ship s, int middleCount)
         {
             var h = s.hull;
@@ -2045,75 +2061,88 @@ namespace TweaksAndFixes
 
             HotfixLog.Dbg($"  Sections {hModelName} {h.middles.Count} -> {middleCount}");
 
+            // [SMS3-22] 防御：没有基础段模型时任何分支都会崩（调用方已提前 return，这里再兜一层）
+            if (h.middlesBase == null)
+            {
+                HotfixLog.Warn("[SMS.2.RH] UpdateSections: middlesBase null @ " + s.vesselName + " -> skip");
+                return;
+            }
+
             if (!HullData.ModifiedSectionOrder(hModelName))
             {
                 if (h.middles.Count != middleCount)
                     InitSectionsCyclical(s, middleCount);
+                return;
+            }
+
+            HotfixLog.Dbg($"    Custom ordering");
+            var hullData = HullData._Data[hModelName];
+
+            // ★ 与 duke 对齐（docs/75）：先查 hullData.csv 的全局段序（按 middleCount 索引），
+            //   再查 parts.csv 的按部件段序（sect_<n> → sectioningParsedPart）。
+            List<int> order = null;
+
+            if (middleCount < hullData.sectioningParsed.Count)
+            {
+                order = hullData.sectioningParsed[middleCount];
             }
             else
             {
-                HotfixLog.Dbg($"    Custom ordering");
-                var hullData = HullData._Data[hModelName];
+                string partName = h.data.name;
 
-                // Remove all, since order can be anything
-                while (h.middles.Count > 0)
+                if (hullData.sectioningParsedPart.ContainsKey(partName) &&
+                    hullData.sectioningParsedPart[partName].ContainsKey(middleCount))
                 {
-                    var section = h.middles[^1];
-                    h.middles.RemoveAt(h.middles.Count - 1);
-                    GameObject.DestroyImmediate(section);
-                }
-
-                // ★ 与 duke 对齐（docs/75）：先查 hullData.csv 的全局段序（按 middleCount 索引），
-                //   再查 parts.csv 的按部件段序（sect_<n> → sectioningParsedPart）。
-                List<int> order;
-
-                if (middleCount < hullData.sectioningParsed.Count)
-                {
-                    order = hullData.sectioningParsed[middleCount];
-                }
-                else
-                {
-                    string partName = h.data.name;
-
-                    if (!hullData.sectioningParsedPart.ContainsKey(partName) ||
-                        !hullData.sectioningParsedPart[partName].ContainsKey(middleCount))
-                    {
-                        // Melon<TweaksAndFixes>.Logger.Error(
-                        //     $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) has {data.Count} section lists defined, " +
-                        //     $"but #{middleCount} (0-indexed) was requested!"
-                        // );
-                        InitSectionsCyclical(s, middleCount);
-                        return;
-                    }
-
                     order = hullData.sectioningParsedPart[partName][middleCount];
                 }
+            }
 
-                // Force default ordering for this section count
-                if (order.Count == 1 && order[0] == -1)
+            // [SMS3-22] 先校验、后销毁：原来顺序是"先删光 middles 再查 order"，
+            //   一旦 order 非法/缺失就只能回退 cyclical，但此时段已经被删了 —— 这正是"艏艉重叠/段数不对"的温床。
+            bool canUseOrder = order != null
+                               && !(order.Count == 1 && order[0] == -1)
+                               && order.Count == middleCount
+                               && order.TrueForAll(i => i >= 0 && i < h.middlesBase.Count);
+
+            if (!canUseOrder)
+            {
+                if (order == null)
+                    HotfixLog.Dbg($"    no order for middleCount={middleCount} -> cyclical");
+                else
+                    HotfixLog.Warn("[SMS.2.RH] bad section order for " + hModelName + " (" + h.data.name + ")"
+                        + " middleCount=" + middleCount + " order=[" + string.Join(",", order) + "]"
+                        + " baseCount=" + h.middlesBase.Count + " -> fallback cyclical");
+                DestroyAllMiddles(s);          // ★ 必须清空：InitSectionsCyclical 是增量的
+                InitSectionsCyclical(s, middleCount);
+                return;
+            }
+
+            // Remove all, since order can be anything
+            DestroyAllMiddles(s);
+
+            // Create in order
+            foreach (var index in order)
+            {
+                var section = Util.CloneGameObject(h.middlesBase[index]);
+                h.middles.Add(section);
+                Util.SetActiveX(section, true);
+            }
+
+            // [SMS3-22] 方向诊断：段序是"从艏到艉"还是"从艉到艏"决定了模型是否镜像。
+            //   只在 DEBUG 配置下打印，用来定位"艏/艉反了"（见 docs/116 §3B）。
+            try
+            {
+                if (HotfixParams.Verbose)
                 {
-                    InitSectionsCyclical(s, middleCount);
-                    return;
-                }
-
-                // Create in order
-                foreach (var index in order)
-                {
-                    if (index >= h.middlesBase.Count)
-                    {
-                        Melon<TweaksAndFixes>.Logger.Error(
-                            $"Ship Sectioning: {s.hull.data.name} ({s.hull.model.name.Replace("Clone", "")}) section order for {middleCount} sections " +
-                            $"requested section #{index} (0-indexed), but there are only {h.middlesBase.Count} section models availible for this hull!"
-                        );
-                        continue;
-                    }
-
-                    // HotfixLog.Dbg($"    {index} : {h.middlesBase.Count}");
-                    var section = Util.CloneGameObject(h.middlesBase[index]);
-                    h.middles.Add(section);
-                    Util.SetActiveX(section, true);
+                    float bz = h.bow != null ? h.bow.transform.localPosition.z : float.NaN;
+                    float sz = h.stern != null ? h.stern.transform.localPosition.z : float.NaN;
+                    float m0z = h.middles.Count > 0 ? h.middles[0].transform.localPosition.z : float.NaN;
+                    float mnz = h.middles.Count > 0 ? h.middles[^1].transform.localPosition.z : float.NaN;
+                    HotfixLog.Dbg($"[SMS.3.SEC] order=[{string.Join(",", order)}] base={h.middlesBase.Count}"
+                        + $" bow.z={bz:0.##} stern.z={sz:0.##} m0.z={m0z:0.##} mN.z={mnz:0.##}");
                 }
             }
+            catch { }
         }
 
         public static Dictionary<string, Stack<GameObject>> PropCache = new();
@@ -2152,14 +2181,19 @@ namespace TweaksAndFixes
             var hModelName = h.data.model;
             var hd = s.hull.data;
 
-            if (h.middlesBase != null)
+            // [SMS3-21] middlesBase 为 null 时**必须交回原版**：
+            //   下面 UpdateSections（无论 cyclical 还是自定义分支）都会解引用它 ⇒ 之前只 warn 就继续，必然 NRE。
+            //   多见于 mod 船体（prefab 的 Visual/Sections 结构缺失或尚未实例化），原版对这种情况能安全跳过。
+            if (h.middlesBase == null)
             {
-                foreach (var m in h.middlesBase)
-                {
-                    if (m != null) Util.SetActiveX(m, false);
-                }
+                HotfixLog.Warn("[SMS.2.RH] middlesBase null @ " + s.vesselName + " -> fallback to vanilla RefreshHull");
+                return true;
             }
-            else HotfixLog.Warn("[SMS.2.RH] middlesBase null @ " + s.vesselName);
+
+            foreach (var m in h.middlesBase)
+            {
+                if (m != null) Util.SetActiveX(m, false);
+            }
 
             if (updateSections)
             {

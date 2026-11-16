@@ -147,6 +147,84 @@ namespace TweaksAndFixes
             }
         }
 
+        /// <summary>[SMS.3.GRADE] DEBUG 级日志（`verbose=1` 时才输出，正式版默认静默）。</summary>
+        private static void GradeDbg(string msg)
+        {
+            if (Config.Param("verbose", 0f) > 0f)
+                Melon<TweaksAndFixes>.Logger.Msg("[SMS.3.GRADE] " + msg);
+        }
+
+        /// <summary>
+        /// [SMS3-20] 抬高 `Config.MaxGunGrade` 之后逐列补齐 grade 数据。
+        ///
+        /// 流程：
+        /// 1) `GradeColumns.LoadAll()` 先把 CSV 的 `_6+` 列读进字典（原版只认 `_1.._5` 字段）；
+        /// 2) partModels：`model` 非空、`scale`/`max_scale` 非 0、`weight`/`caliber_length` 非 0 才算有值；
+        /// 3) guns：射表列 > 0 才算有值；
+        /// 4) 对仍缺失的列，**逐列**回滚到最近有效级（不是整级回滚）。
+        ///
+        /// 全部日志为 DEBUG 级（`verbose=1`）。
+        /// </summary>
+        public static void ReapplyGradeData()
+        {
+            if (Config.MaxGunGrade <= 5)
+                return;
+
+            int max = Config.MaxGunGrade;
+
+            GradeColumns.LoadAll();
+
+            int pmAll = 0, pmFallback = 0, pmReal = 0;
+            int gunRows = 0, gunReal = 0;
+
+            foreach (var pm in G.GameData.partModels.Values)
+            {
+                if (pm.caliberLengthModifiers.count < 5)
+                    continue;   // 只处理火炮类 partModel
+
+                pmAll++;
+                bool isFallbackRow = string.IsNullOrEmpty(pm.countries) && string.IsNullOrEmpty(pm.shipTypes);
+                if (isFallbackRow) pmFallback++;
+
+                bool real = pm.models.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.models[max], ModUtils.GradeValueRule.NonEmptyString)
+                            && pm.scales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.scales[max], ModUtils.GradeValueRule.NonZeroNumber)
+                            && pm.maxScales.ContainsKey(max) && ModUtils.IsValidGradeValue(pm.maxScales[max], ModUtils.GradeValueRule.NonZeroNumber);
+                if (real) pmReal++;
+
+                ModUtils.FillGradeData(pm.models, max, ModUtils.GradeValueRule.NonEmptyString);
+                ModUtils.FillGradeData(pm.scales, max, ModUtils.GradeValueRule.NonZeroNumber);
+                ModUtils.FillGradeData(pm.maxScales, max, ModUtils.GradeValueRule.NonZeroNumber);
+                ModUtils.FillGradeData(pm.weightModifiers, max, ModUtils.GradeValueRule.NonZeroNumber);
+                ModUtils.FillGradeData(pm.caliberLengthModifiers, max, ModUtils.GradeValueRule.NonZeroNumber);
+            }
+
+            foreach (var gd in G.GameData.guns.Values)
+            {
+                gunRows++;
+
+                bool real = gd.accuracies.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.accuracies[max], ModUtils.GradeValueRule.PositiveNumber)
+                            && gd.ranges.ContainsKey(max) && ModUtils.IsValidGradeValue(gd.ranges[max], ModUtils.GradeValueRule.PositiveNumber);
+                if (real) gunReal++;
+
+                ModUtils.FillGradeData(gd.accuracies, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.barrelWeights, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.firerates, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.penetrations, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.ranges, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.shellVelocities, max, ModUtils.GradeValueRule.PositiveNumber);
+                ModUtils.FillGradeData(gd.shellWeights, max, ModUtils.GradeValueRule.PositiveNumber);
+            }
+
+            GunData.gradesTotal = Config.MaxGunGrade;
+
+            GradeDbg("grade " + max + ": partModels " + pmAll + " (fallback rows " + pmFallback
+                + ", usable grade-" + max + " model: " + pmReal + "), guns " + gunRows
+                + " (usable grade-" + max + " table: " + gunReal + ")");
+
+            if (pmReal == 0 && gunReal == 0)
+                GradeDbg("grade " + max + " has no real data -> all columns carried over from the nearest valid grade");
+        }
+
         public static void LoadData()
         {
             GunDataExtension.LoadData();
